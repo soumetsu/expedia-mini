@@ -2,10 +2,10 @@
 
 ## Handoff status
 
-- Last updated: `2026-09-12 00:22 EDT`
-- Claims last verified: `2026-09-12 00:22 EDT`
-- Update trigger: The Part 1 implementation commit was published successfully
-  to the user-specified GitHub repository.
+- Last updated: `2026-09-12 00:37 EDT`
+- Claims last verified: `2026-09-12 00:37 EDT`
+- Update trigger: The user requested a shorter, more human-readable submission
+  report without a detailed history of small prompts and changes.
 
 ## Objective
 
@@ -66,8 +66,8 @@ application behavior without a new request.
 - `docs/design.md` — implemented Vue-to-FastAPI data flow and responsibility
   boundaries.
 - `docs/verification.md` — repeatable integrated Part 1 smoke procedure.
-- `report.md` — verified implementation/build/API/browser evidence and image
-  links without invented submission or manual-review claims.
+- `report.md` — concise Part 1 implementation, verification, repository, scope,
+  and browser-evidence summary without invented manual-review claims.
 - `handoffs/current.md` — this maintained snapshot.
 
 Generated `frontend/dist/` output was created by the successful build and
@@ -110,6 +110,8 @@ or Git state was changed by Prompt 04.
   returned HTTP 200.
 - `git push --set-upstream origin main` succeeded and created the remote `main`
   branch at the exact implementation commit above.
+- The documentation-only report edit reduced `report.md` from 1,068 to 342
+  words; `git diff --check -- report.md` passed.
 
 No user/developer manual interface or source review has been claimed.
 
