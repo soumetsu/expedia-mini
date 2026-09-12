@@ -2,13 +2,10 @@
 
 ## Repository and commit
 
-- GitHub repository URL: **Not available yet.** This workspace is not currently
-  connected to a GitHub repository.
-- Exact submitted commit: **Not available yet.** No Part 1 commit has been
-  submitted.
-
-Replace these notes with the instructor-accessible repository URL and full
-commit hash before submission.
+- GitHub repository URL:
+  [https://github.com/soumetsu/expedia-mini](https://github.com/soumetsu/expedia-mini)
+- Exact submitted Part 1 implementation commit:
+  [`73fee4df1db360c8c8506f5df5b4d56dbdc060e0`](https://github.com/soumetsu/expedia-mini/commit/73fee4df1db360c8c8506f5df5b4d56dbdc060e0)
 
 ## Implementation
 
@@ -37,8 +34,9 @@ response row per stay. The browser does not read CSV files directly.
 
 Official Prompt 02 completed the approved project-local environments. Prompt 03
 completed the tested FastAPI CSV search. Prompt 04 completed the barebones Vue
-integration and automated browser checks. No SQLite, booking, final-design,
-image-selection, or Git work was performed.
+integration and automated browser checks. The completed Part 1 checkpoint was
+published afterward. No SQLite, booking, final-design, or image-selection work
+was performed.
 
 ## Verification
 
@@ -69,6 +67,7 @@ They are not claims of user or developer manual review.
 | Check narrow viewport | The form stays usable and the table does not widen the page | Passed at 375×700; the table stayed inside a keyboard-focusable horizontal scroll region |
 | Inspect browser console | A clean final success run has no unexpected warnings or errors | Passed; the clean final tab reported no warning or error entries |
 | Confirm final services | Backend and frontend remain reachable for manual inspection | Passed; FastAPI listens on 127.0.0.1:8000 and Vite on 127.0.0.1:5173 at the end of Prompt 04 |
+| Publish the Part 1 checkpoint | The implementation commit is available on GitHub | Passed; `main` was published at `73fee4df1db360c8c8506f5df5b4d56dbdc060e0` |
 
 No frontend source-code correction cycle was needed; the production build
 passed on its first run. The deliberately induced backend-off request produced
@@ -77,9 +76,8 @@ no warning or error console entries.
 
 ### Automated browser evidence
 
-These repository-relative images become instructor-accessible after the project
-is published to the submitted repository. No instructor-accessible repository
-URL exists yet.
+These repository-relative images are instructor-accessible from the published
+repository.
 
 ![Successful Harbor Lantern search](docs/screenshots/part1/hotel-search-success.png)
 
@@ -100,8 +98,7 @@ URL exists yet.
 - [Current handoff](handoffs/current.md)
 
 The Part 1 CSV search is implemented end to end. Remaining limitations are the
-missing frontend lint/test setup, the shell-specific Node/npm command-discovery
-issue, and the absence of a submitted repository URL and commit. The interface
-is deliberately barebones; final visual styling and selection/copying of any
-application images belong in a later design prompt. SQLite and booking features
-remain Part 2 work.
+missing frontend lint/test setup and the shell-specific Node/npm
+command-discovery issue. The interface is deliberately barebones; final visual
+styling and selection/copying of any application images belong in a later
+design prompt. SQLite and booking features remain Part 2 work.

@@ -2,18 +2,16 @@
 
 ## Handoff status
 
-- Last updated: `2026-09-12 00:17 EDT`
-- Claims last verified: `2026-09-12 00:17 EDT`
-- Update trigger: The user authorized Git initialization and publication to
-  `https://github.com/soumetsu/expedia-mini`; local initialization is complete,
-  but the commit author identity is not configured.
+- Last updated: `2026-09-12 00:22 EDT`
+- Claims last verified: `2026-09-12 00:22 EDT`
+- Update trigger: The Part 1 implementation commit was published successfully
+  to the user-specified GitHub repository.
 
 ## Objective
 
-Preserve the completed Part 1 FastAPI CSV search and barebones Vue integration,
-then publish this checkpoint to
-`https://github.com/soumetsu/expedia-mini`. Do not begin Part 2, use images, add
-dependencies, or change application behavior.
+Preserve the completed and published Part 1 FastAPI CSV search and barebones Vue
+integration. Do not begin Part 2, use images, add dependencies, or change
+application behavior without a new request.
 
 ## Current state
 
@@ -42,11 +40,12 @@ dependencies, or change application behavior.
   variable is required for the verified local setup.
 - The UI has only minimal functional CSS. Final design and image selection were
   intentionally deferred.
-- Git is initialized locally on branch `main`, with no commits yet.
-- `origin` points to `https://github.com/soumetsu/expedia-mini.git`; the remote
-  advertises no refs and appears empty.
-- No Git author name or email is configured. Publication is waiting for the
-  user to provide the intended commit identity.
+- Git is initialized on branch `main`, which tracks `origin/main` at
+  `https://github.com/soumetsu/expedia-mini.git`.
+- The exact published Part 1 implementation commit is
+  `73fee4df1db360c8c8506f5df5b4d56dbdc060e0`.
+- The repository-local Git author identity is
+  `Henry Adams <hla5185@psu.edu>`.
 - The transient `expedia-lite-data/.~lock.hotels.csv#` file is excluded by the
   repository's `.gitignore` and must not be committed.
 
@@ -109,6 +108,8 @@ or Git state was changed by Prompt 04.
   entries and again rendered T001 and T009.
 - Latest freshness check at `2026-09-12 00:11 EDT`: the frontend and backend both
   returned HTTP 200.
+- `git push --set-upstream origin main` succeeded and created the remote `main`
+  branch at the exact implementation commit above.
 
 No user/developer manual interface or source review has been claimed.
 
@@ -148,13 +149,16 @@ processes are still running.
 
 - No frontend lint script or automated frontend test framework is configured.
 - `node` and `npm` require their direct installed paths in the current shell.
-- No submitted commit exists yet; the Git author identity is still required.
+- No merge commit was needed because the destination repository had no existing
+  branch history and the project was initialized directly on `main`.
 - Final visual design and application imagery are deferred.
 - SQLite, bookings, history, cancellation, deletion, users, and other Part 2
   behavior are not implemented.
 
 ## Exact next action
 
-Obtain the intended Git commit author name and email from the user, create the
-minimal publication commits, update `report.md` with the verified repository URL
-and implementation commit, and push branch `main` to `origin`.
+The user can inspect the published repository and the application at
+`http://127.0.0.1:5173/`. For the next development task, create and authorize a
+separate design prompt that restyles the existing functional components and
+explicitly selects any approved image assets without changing the verified API
+contract or adding Part 2 controls.
