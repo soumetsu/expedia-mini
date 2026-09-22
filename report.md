@@ -6,8 +6,8 @@
 - Published Part 1 implementation commit:
   [`73fee4df1db360c8c8506f5df5b4d56dbdc060e0`](https://github.com/soumetsu/expedia-mini/commit/73fee4df1db360c8c8506f5df5b4d56dbdc060e0)
 
-The persistence and booking milestone described below is present in the working
-tree; no later commit identifier is claimed here.
+The persistence, MVC, and booking milestone described below was published to
+`main` in commit `a49e4a8`.
 
 ## Implementation
 
@@ -69,6 +69,8 @@ control; they do not represent manual user or developer review.
   empty list.
 - The production build was rerun after the final display-name/status correction
   and passed. Both development servers remained reachable afterward.
+- Git publication verification confirmed `main` pushed successfully to
+  `origin/main` at implementation commit `a49e4a8`.
 
 ### Existing automated browser evidence
 

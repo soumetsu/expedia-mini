@@ -2,11 +2,10 @@
 
 ## Handoff status
 
-- Last updated: `2026-09-21 23:44 EDT`
-- Claims last verified: `2026-09-21 23:44 EDT`
-- Update trigger: The user requested a review of the maintained Markdown and
-  handoff records and asked to publish the frontend and SQLite/MVC work to the
-  current GitHub remote.
+- Last updated: `2026-09-21 23:48 EDT`
+- Claims last verified: `2026-09-21 23:48 EDT`
+- Update trigger: The reviewed frontend and SQLite/MVC work was committed and
+  pushed to the current GitHub remote.
 
 ## Objective
 
@@ -21,8 +20,9 @@ separate request.
 - Upstream: `origin/main` at `https://github.com/soumetsu/expedia-mini.git`.
 - Before this request, `HEAD` matched `origin/main` at `6b69d75`; the frontend
   and SQLite/MVC work was uncommitted in the working tree.
-- No merge is required because there is no divergent local branch. The pending
-  action is to commit the reviewed working tree and push `main`.
+- No merge was required because there was no divergent local branch. The
+  implementation was committed as `a49e4a8` and pushed to `origin/main`.
+- A documentation-only follow-up commit records this publication state.
 
 ## Current state
 
