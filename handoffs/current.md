@@ -2,10 +2,10 @@
 
 ## Handoff status
 
-- Last updated: `2026-09-22 01:57 EDT`
-- Claims last verified: `2026-09-22 01:57 EDT`
-- Update trigger: Implemented demo account registration/login and per-user
-  SQLite search history across the FastAPI and Vue MVC layers.
+- Last updated: `2026-09-22 02:27 EDT`
+- Claims last verified: `2026-09-22 02:27 EDT`
+- Update trigger: Committed and pushed the demo account registration/login and
+  per-user SQLite search-history milestone.
 
 ## Objective
 
@@ -18,11 +18,12 @@ enhancements.
 
 - Current branch: `main`.
 - Upstream: `origin/main` at `https://github.com/soumetsu/expedia-mini.git`.
-- Before this request, `HEAD` matched `origin/main` at `6b69d75`; the frontend
-  and SQLite/MVC work was uncommitted in the working tree.
-- No merge was required because there was no divergent local branch. The
-  implementation was committed as `a49e4a8` and pushed to `origin/main`.
-- A documentation-only follow-up commit records this publication state.
+- The clear-selection and authentication/search-history changes were committed
+  as `ce71752` (`Add demo authentication and per-user search history`) and
+  pushed successfully to `origin/main`.
+- `HEAD` and `origin/main` both resolve to `ce71752`; no merge was required.
+- The working tree was clean immediately after the push; this handoff update
+  is the only follow-up publication record.
 
 ## Current state
 
@@ -138,11 +139,10 @@ These are timestamped process claims; verify reachability before reusing them.
   persistent sessions, password reset, and account deletion are not implemented.
 - No rooms, occupancy, amenities, reviews, taxes, payments, flights, cars,
   packages, live demand, or dynamic pricing are represented by the data.
-- The current clear-selection UI and documentation edits are uncommitted in the
-  shared working tree; preserve them if continuing in another thread.
+- The clear-selection and authentication/search-history changes are published
+  on `origin/main` at `ce71752`.
 
 ## Exact next action
 
-Review and, if desired, commit/publish the verified authentication and
-search-history milestone. The next product enhancement is transparent,
-deterministic recommendation ranking informed by the stored search history.
+The next product enhancement is transparent, deterministic recommendation
+ranking informed by the stored search history.
