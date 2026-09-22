@@ -22,9 +22,55 @@ These rules apply to the entire repository.
 - Keep reusable task briefs in `prompts/` and durable technical context in
   `docs/`; do not use a prompt file as the only record of a project decision.
 
+## Current product direction
+
+- Treat the responsive location/hotel search, optional fixed-date filters,
+  deterministic recommendation cards, simulated booking, and separate booking
+  history page as the implemented interface baseline.
+- SQLite persistence and the frontend booking lifecycle are implemented;
+  recent-search personalization remains a future enhancement.
+- Every booking lifecycle action must be available through the frontend: create
+  a booking, read it in history, cancel it by updating its status while keeping
+  the record, and delete a test booking. Do not require the user to edit CSV or
+  database files directly.
+- Keep backend changes focused. Preserve working search behavior and add only
+  the contracts, validation, persistence, and control logic needed to support
+  the agreed frontend behavior.
+- Do not present planned features as implemented. The current data supports
+  hotel name, city/state, fixed stay dates, nightly price, derived stay price,
+  trip names, demo users, and booking status. It does not provide room
+  inventory, traveler capacity, taxes or fees, amenities, reviews, weather,
+  live demand, flights, cars, cruises, or package inventory.
+- Persistence seeds hotels, trips, users, and bookings into SQLite once, then
+  uses SQLite for application reads and writes. Preserve supplied IDs and
+  generate collision-free IDs for new records.
+- Preserve clear Model–View–Controller responsibilities: models
+  define entities, fields, stored records, and relationships; Vue components
+  form the view; FastAPI routes plus a focused database controller/service
+  coordinate validation and CRUD operations.
+- Demo authentication and dynamic-pricing experiments are lower priority and
+  require separate authorization. Never vary price based on battery level or
+  device type. Any later pricing demonstration must be transparent,
+  deterministic, and based on disclosed travel-domain inputs such as trip dates
+  or an explicit holiday calendar.
+
 ## Backend
 
 - Keep FastAPI code under `backend/app/`.
+- Keep entity definitions and Pydantic input/output contracts under
+  `backend/app/models/`. Models may describe fields and relationships but must
+  not open SQLite, execute SQL, or depend on Vue.
+- Keep database access and business workflows under `backend/app/controllers/`.
+  `database.py` is the only application module that opens SQLite and owns
+  schema creation, one-time seeding, reference enforcement, and booking CRUD.
+  Separate controllers such as `catalog.py` may call it through typed model
+  contracts; they must not bypass it with direct SQL.
+- Keep `routes.py` as a thin HTTP adapter: validate web inputs, call a
+  controller, translate expected errors, and return Pydantic contracts. Do not
+  put SQL or presentation logic in routes.
+- Use the four supplied CSV files only to seed an uninitialized database. Once
+  the seed marker exists, every application read and write—including hotel
+  search and recommendations—must use SQLite.
 - Use `/api` as the prefix for application endpoints.
 - Use Pydantic models for request and response contracts once domain endpoints
   are introduced.
@@ -37,6 +83,8 @@ These rules apply to the entire repository.
 ## Frontend
 
 - Keep Vue source code under `frontend/src/`.
+- Treat all Vue pages, components, and CSS as the MVC View. The View may call
+  FastAPI through `services/api.js`; it must not read CSV files or SQLite.
 - Prefer Vue 3 Composition API and small, single-purpose components.
 - Keep API access separate from presentation components when endpoints are
   added.

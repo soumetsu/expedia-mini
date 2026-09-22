@@ -1,54 +1,60 @@
 <script setup>
 defineProps({
-  results: {
-    type: Array,
-    required: true,
-  },
+  results: { type: Array, required: true },
+  bookingTripId: { type: String, default: '' },
 })
+
+defineEmits(['book'])
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
+  maximumFractionDigits: 0,
+})
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
 })
 
 function formatUsd(value) {
   return usdFormatter.format(Number(value))
 }
+
+function formatDate(value) {
+  return dateFormatter.format(new Date(`${value}T00:00:00Z`))
+}
 </script>
 
 <template>
-  <section class="results" aria-labelledby="results-title">
-    <h2 id="results-title">Available stays</h2>
-
-    <div class="table-scroll" tabindex="0" aria-label="Available hotel stays table">
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Hotel</th>
-            <th scope="col">Location</th>
-            <th scope="col">Stay ID</th>
-            <th scope="col">Stay</th>
-            <th scope="col">Check-in</th>
-            <th scope="col">Check-out</th>
-            <th scope="col">Nights</th>
-            <th scope="col">Nightly rate</th>
-            <th scope="col">Estimated price</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="stay in results" :key="stay.trip_id">
-            <td>{{ stay.hotel_name }}</td>
-            <td>{{ stay.city }}, {{ stay.state }}</td>
-            <td>{{ stay.trip_id }}</td>
-            <td>{{ stay.trip_name }}</td>
-            <td>{{ stay.check_in }}</td>
-            <td>{{ stay.check_out }}</td>
-            <td>{{ stay.nights }}</td>
-            <td>{{ formatUsd(stay.nightly_rate_usd) }}</td>
-            <td>{{ formatUsd(stay.estimated_stay_price_usd) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <div class="result-card-grid" aria-label="Available hotel stays">
+    <article v-for="stay in results" :key="stay.trip_id" class="result-card">
+      <div class="result-card-main">
+        <div class="result-location-row">
+          <span class="result-location">{{ stay.city }}, {{ stay.state }}</span>
+          <span class="stay-id">Stay {{ stay.trip_id }}</span>
+        </div>
+        <h3>{{ stay.hotel_name }}</h3>
+        <p>{{ stay.trip_name }}</p>
+        <p class="result-dates">
+          {{ formatDate(stay.check_in) }} – {{ formatDate(stay.check_out) }}
+          <span>· {{ stay.nights }} nights</span>
+        </p>
+      </div>
+      <div class="result-price-action">
+        <p><strong>{{ formatUsd(stay.estimated_stay_price_usd) }}</strong> estimated total</p>
+        <span>{{ formatUsd(stay.nightly_rate_usd) }}/night</span>
+        <button
+          class="book-action"
+          type="button"
+          :disabled="Boolean(bookingTripId)"
+          @click="$emit('book', stay)"
+        >
+          {{ bookingTripId === stay.trip_id ? 'Booking…' : 'Book this stay' }}
+        </button>
+      </div>
+    </article>
+  </div>
 </template>

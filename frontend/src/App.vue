@@ -1,66 +1,80 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import HotelResultsTable from './components/HotelResultsTable.vue'
-import HotelSearchForm from './components/HotelSearchForm.vue'
-import { searchHotels } from './services/api.js'
+import BookingHistoryPage from './pages/BookingHistoryPage.vue'
+import SearchPage from './pages/SearchPage.vue'
+import { getDemoUsers } from './services/api.js'
 
-const query = ref('')
-const loading = ref(false)
-const results = ref([])
-const resultCount = ref(0)
-const hasSearched = ref(false)
-const errorMessage = ref('')
+const currentPath = ref(window.location.pathname)
+const users = ref([])
+const selectedUserId = ref('')
+const startupError = ref('')
+const isHistoryPage = computed(() => currentPath.value === '/bookings')
 
-const noResults = computed(
-  () => hasSearched.value && !loading.value && !errorMessage.value && resultCount.value === 0,
-)
+function navigate(path) {
+  if (window.location.pathname !== path) window.history.pushState({}, '', path)
+  currentPath.value = path
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
-async function handleSearch(normalizedQuery) {
-  query.value = normalizedQuery
-  loading.value = true
-  hasSearched.value = false
-  errorMessage.value = ''
-  results.value = []
-  resultCount.value = 0
+function handlePopState() {
+  currentPath.value = window.location.pathname
+}
 
+async function loadUsers() {
   try {
-    const response = await searchHotels(normalizedQuery)
-    results.value = response.results
-    resultCount.value = response.count
-    hasSearched.value = true
-  } catch {
-    hasSearched.value = true
-    errorMessage.value =
-      'The hotel search could not be completed. Check that the backend is running and try again.'
-  } finally {
-    loading.value = false
+    users.value = await getDemoUsers()
+    selectedUserId.value = users.value[0]?.user_id || ''
+  } catch (error) {
+    startupError.value = error.message || 'Demo travelers could not be loaded.'
   }
 }
+
+onMounted(() => {
+  window.addEventListener('popstate', handlePopState)
+  loadUsers()
+})
+onBeforeUnmount(() => window.removeEventListener('popstate', handlePopState))
 </script>
 
 <template>
-  <main class="page-container">
-    <header class="page-header">
-      <h1>Expedia-Mini</h1>
-      <p>Search the available hotel stays by entering all or part of a hotel name.</p>
-    </header>
-
-    <HotelSearchForm v-model="query" :loading="loading" @search="handleSearch" />
-
-    <div class="search-status" aria-live="polite" aria-atomic="true">
-      <p v-if="loading" role="status">Searching for available stays…</p>
-      <p v-else-if="errorMessage" class="error-message" role="alert">
-        {{ errorMessage }}
-      </p>
-      <p v-else-if="noResults" role="status">
-        No hotels matched “{{ query }}”. Try another hotel name.
-      </p>
-      <p v-else-if="hasSearched" class="result-count" role="status">
-        {{ resultCount }} {{ resultCount === 1 ? 'stay' : 'stays' }} found for “{{ query }}”.
-      </p>
+  <header class="site-header">
+    <div class="page-container site-header-inner">
+      <a class="brand-lockup" href="/" @click.prevent="navigate('/')">
+        <span class="brand-mark" aria-hidden="true">E</span>
+        <span>Expedia-Mini</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="/" :aria-current="!isHistoryPage ? 'page' : undefined" @click.prevent="navigate('/')">
+          Search stays
+        </a>
+        <a
+          href="/bookings"
+          :aria-current="isHistoryPage ? 'page' : undefined"
+          @click.prevent="navigate('/bookings')"
+        >
+          Booking history
+        </a>
+      </nav>
     </div>
+  </header>
 
-    <HotelResultsTable v-if="results.length" :results="results" />
-  </main>
+  <div v-if="startupError" class="page-container global-error" role="alert">
+    {{ startupError }} Check that the backend is running, then refresh the page.
+  </div>
+
+  <BookingHistoryPage
+    v-if="isHistoryPage"
+    :users="users"
+    :selected-user-id="selectedUserId"
+    @update:selected-user-id="selectedUserId = $event"
+    @navigate="navigate"
+  />
+  <SearchPage
+    v-else
+    :users="users"
+    :selected-user-id="selectedUserId"
+    @update:selected-user-id="selectedUserId = $event"
+    @navigate="navigate"
+  />
 </template>
