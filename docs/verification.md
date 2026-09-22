@@ -82,12 +82,15 @@ check.
 9. Search for `No Such Expedia-Mini Hotel` with the button. Confirm the old
    table is removed and a clear no-results message appears.
 10. Submit a blank value and confirm that inline validation prevents a request.
-11. If testing failure feedback, stop only a backend process started for this
+11. After a populated search, activate **Clear selections**. Confirm that the
+    location and optional date fields, visible search results, and transient
+    booking feedback are cleared, while persisted booking history is unchanged.
+12. If testing failure feedback, stop only a backend process started for this
     check, search once, confirm the distinct API-error message, and restart the
     backend before finishing.
-12. At a narrow viewport, confirm the primary search, secondary date/user
+13. At a narrow viewport, confirm the primary search, secondary date/user
     controls, stay cards, and recommendation cards stack cleanly.
-13. Confirm a clean browser run has no warning or error console entries, and
+14. Confirm a clean browser run has no warning or error console entries, and
     inspect both service logs for unexpected errors.
 
 Store browser evidence under `docs/screenshots/part1/`. Prompt 04 evidence uses:
@@ -178,3 +181,30 @@ The verified September 21, 2026 run created B007, read it in U006 history,
 cancelled it while retaining the row, displayed the two-step delete control,
 then deleted that exact temporary record through the API for cleanup. U006
 history was empty afterward.
+
+## Demo authentication and search-history smoke test
+
+Authentication uses only the installed Python standard library for password
+hashing and process-local bearer sessions. No package installation is needed.
+
+1. Open `/register` and submit a unique username, an eight-character-or-longer
+   password, and either a blank email or a made-up but syntactically valid email
+   such as `traveler@example.test`.
+2. Confirm a malformed value such as `#@!(*&*!(@#&@gmail.coma` is rejected,
+   and that a repeated username or email returns a useful conflict message.
+3. Confirm successful registration signs the user in and exposes the username
+   plus **Log out** control. Passwords must never appear in API responses.
+4. Search for Boston while signed in, open `/search-history`, and confirm the
+   query and result count are shown for that account.
+5. Sign out, sign in as another account, and confirm that the first account's
+   search is not shown. Guest searches remain available but are not persisted.
+6. Confirm `GET /api/auth/me` and `GET /api/search-history` return HTTP 401
+   without the bearer token, while the existing hotel and booking flows remain
+   available.
+
+The September 22, 2026 verification used the migrated seeded account
+`demo_u001` with its deterministic demo password, confirmed `/auth/login`,
+`/auth/me`, the sign-in page, the registration page, and a private Boston search
+history entry. The synthetic history row was removed after the check. The new
+focused auth suite covers hashed-password verification, username/email
+uniqueness, malformed-email rejection, and isolation between two users.

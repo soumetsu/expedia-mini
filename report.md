@@ -25,6 +25,10 @@ confirmed/cancelled status, cancellation that retains the record, and a
 two-step delete control for user-created test bookings. Seeded examples remain
 protected from deletion.
 
+The search form also provides a compact **Clear selections** action that resets
+the active destination, optional dates, visible result cards, and transient
+booking feedback without deleting persisted booking history.
+
 SQLite persistence is implemented with Python's standard-library `sqlite3`.
 The backend creates the schema and imports the unchanged hotel, trip, user, and
 booking CSV rows once. Existing IDs are preserved, new bookings receive a
@@ -42,7 +46,10 @@ through `/api`; the browser never accesses SQLite directly.
 
 Recommendations remain factual and deterministic: one stay per hotel ranked
 by estimated total, nightly rate, check-in date, and trip ID. Recent-search
-personalization is still explicitly identified as future work.
+personalization is still explicitly identified as future work. Demo accounts
+now support unique usernames, hashed passwords, optional unique emails, and a
+process-local bearer session. Authenticated searches are stored in a per-user
+`search_history` table and displayed on a separate page.
 
 ## Verification
 
@@ -57,7 +64,8 @@ control; they do not represent manual user or developer review.
   deletion, seed protection, date filtering, search, recommendations, and
   route registration, and proof that search reflects a post-seed SQLite change
   rather than rereading CSV.
-- The Vue production build passed with 16 modules transformed. No frontend
+- The Vue production build passed with 19 modules transformed after adding the
+  account and search-history pages. No frontend
   lint or automated frontend test script is configured.
 - Browser verification on the local application selected Demo Traveler 6,
   searched New York with a date window, and returned T003 and T004 above the
@@ -69,6 +77,16 @@ control; they do not represent manual user or developer review.
   empty list.
 - The production build was rerun after the final display-name/status correction
   and passed. Both development servers remained reachable afterward.
+- A browser check submitted a Boston search, activated **Clear selections**,
+  and confirmed the location/date fields and four result cards were cleared
+  while the recommendation cards remained.
+- The focused authentication suite passed four tests for hashed-password
+  verification, unique username/email conflicts, malformed-email rejection,
+  and isolation between two users. The full backend suite then passed 29 tests.
+- Browser verification signed in as the migrated `demo_u001` account, recorded
+  a Boston search, displayed it on `/search-history`, and confirmed the
+  registration page exposes username, password, confirmation, and optional
+  email fields. The synthetic history row was removed after verification.
 - Git publication verification confirmed `main` pushed successfully to
   `origin/main` at implementation commit `a49e4a8`.
 
@@ -86,8 +104,8 @@ The [README](README.md) contains run commands, endpoints, current behavior, and
 data boundaries. [docs/design.md](docs/design.md) records the architecture, and
 [docs/verification.md](docs/verification.md) provides repeatable checks.
 
-Authentication, payments, arbitrary availability, rooms, occupancy, amenities,
-reviews, taxes, live demand, transportation bundles, and dynamic pricing are
-outside the current implementation. Demo authentication and transparent
-travel-domain pricing logic remain lower priority. Battery state and device type
-must not affect price.
+Production-grade authentication, password reset, payments, arbitrary
+availability, rooms, occupancy, amenities, reviews, taxes, live demand,
+transportation bundles, and dynamic pricing are outside the current
+implementation. The demo authentication/session and per-user search-history
+layer are implemented; battery state and device type must not affect price.

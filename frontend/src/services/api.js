@@ -2,6 +2,8 @@ const HOTEL_SEARCH_PATH = '/api/hotels/search'
 const HOTEL_RECOMMENDATIONS_PATH = '/api/hotels/recommended'
 const USERS_PATH = '/api/users'
 const BOOKINGS_PATH = '/api/bookings'
+const AUTH_PATH = '/api/auth'
+const SEARCH_HISTORY_PATH = '/api/search-history'
 
 export class ApiRequestError extends Error {
   constructor(message, status = null) {
@@ -55,7 +57,11 @@ function validateCollection(data, fallbackMessage) {
   return data
 }
 
-export async function searchHotels(location, { checkIn = '', checkOut = '' } = {}) {
+export async function searchHotels(
+  location,
+  { checkIn = '', checkOut = '' } = {},
+  token = '',
+) {
   const parameters = new URLSearchParams({ name: location })
   if (checkIn) parameters.set('check_in', checkIn)
   if (checkOut) parameters.set('check_out', checkOut)
@@ -63,11 +69,58 @@ export async function searchHotels(location, { checkIn = '', checkOut = '' } = {
   return validateCollection(
     await requestJson(
       `${HOTEL_SEARCH_PATH}?${parameters.toString()}`,
-      {},
+      token ? { headers: { Authorization: `Bearer ${token}` } } : {},
       'The search service',
     ),
     'The search service',
   )
+}
+
+export function registerAccount(payload) {
+  return requestJson(
+    `${AUTH_PATH}/register`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    'The account service',
+  )
+}
+
+export function loginAccount(payload) {
+  return requestJson(
+    `${AUTH_PATH}/login`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    'The account service',
+  )
+}
+
+export function logoutAccount(token) {
+  return requestJson(
+    `${AUTH_PATH}/logout`,
+    {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+    'The account service',
+  )
+}
+
+export function getCurrentAccount(token) {
+  return requestJson(
+    `${AUTH_PATH}/me`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    'The account service',
+  )
+}
+
+export async function getSearchHistory(token) {
+  const data = await requestJson(
+    SEARCH_HISTORY_PATH,
+    { headers: { Authorization: `Bearer ${token}` } },
+    'The search history service',
+  )
+  if (!Array.isArray(data)) {
+    throw new ApiRequestError('The search history service returned an unexpected response.')
+  }
+  return data
 }
 
 export async function getRecommendedHotels(limit = 3) {

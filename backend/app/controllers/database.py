@@ -7,7 +7,14 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from ..models import BookingResponse, HotelStayResponse, UserResponse
+from ..models import (
+    AuthUserResponse,
+    BookingResponse,
+    HotelStayResponse,
+    SearchHistoryResponse,
+    UserResponse,
+)
+from .security import hash_password, verify_password
 from .seed import DATA_DIRECTORY, SeedDataError, load_seed_data
 
 
@@ -25,6 +32,14 @@ class BookingNotFoundError(LookupError):
 
 class BookingConflictError(ValueError):
     """Raised when a booking operation conflicts with stored state."""
+
+
+class AccountConflictError(ValueError):
+    """Raised when an account username or email is already in use."""
+
+
+class AuthenticationError(LookupError):
+    """Raised when credentials do not match a stored account."""
 
 
 SCHEMA = """
@@ -52,7 +67,11 @@ CREATE TABLE IF NOT EXISTS trips (
 
 CREATE TABLE IF NOT EXISTS users (
     user_id TEXT PRIMARY KEY,
-    display_name TEXT NOT NULL
+    display_name TEXT NOT NULL,
+    username TEXT,
+    email TEXT,
+    password_hash TEXT,
+    is_demo INTEGER NOT NULL DEFAULT 1 CHECK (is_demo IN (0, 1))
 );
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -67,7 +86,84 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE INDEX IF NOT EXISTS idx_trips_hotel_id ON trips(hotel_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_trip_id ON bookings(trip_id);
+CREATE TABLE IF NOT EXISTS search_history (
+    search_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    check_in TEXT,
+    check_out TEXT,
+    result_count INTEGER NOT NULL CHECK (result_count >= 0),
+    searched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_search_history_user_time
+    ON search_history(user_id, searched_at DESC, search_id DESC);
 """
+
+
+def _demo_password(user_id: str) -> str:
+    """Provide deterministic credentials for the six legacy demo travelers."""
+
+    return f"Demo-{user_id}-Pass!"
+
+
+def _ensure_auth_schema(connection: sqlite3.Connection) -> None:
+    """Migrate databases created before account and search-history support."""
+
+    columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(users)")
+    }
+    migrations = {
+        "username": "ALTER TABLE users ADD COLUMN username TEXT",
+        "email": "ALTER TABLE users ADD COLUMN email TEXT",
+        "password_hash": "ALTER TABLE users ADD COLUMN password_hash TEXT",
+        "is_demo": "ALTER TABLE users ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 1",
+    }
+    for column, statement in migrations.items():
+        if column not in columns:
+            connection.execute(statement)
+
+    legacy_users = connection.execute(
+        "SELECT user_id FROM users WHERE username IS NULL OR password_hash IS NULL"
+    ).fetchall()
+    for row in legacy_users:
+        user_id = row["user_id"]
+        connection.execute(
+            """
+            UPDATE users
+            SET username = ?, password_hash = ?, is_demo = 1
+            WHERE user_id = ?
+            """,
+            (f"demo_{user_id.lower()}", hash_password(_demo_password(user_id), user_id.encode()), user_id),
+        )
+
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE)"
+    )
+    connection.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
+        ON users(email COLLATE NOCASE) WHERE email IS NOT NULL
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS search_history (
+            search_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            query TEXT NOT NULL,
+            check_in TEXT,
+            check_out TEXT,
+            result_count INTEGER NOT NULL CHECK (result_count >= 0),
+            searched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_search_history_user_time
+        ON search_history(user_id, searched_at DESC, search_id DESC)
+        """
+    )
 
 
 def _connect(database_path: Path) -> sqlite3.Connection:
@@ -91,6 +187,7 @@ def initialize_database(
     try:
         with connection:
             connection.executescript(SCHEMA)
+            _ensure_auth_schema(connection)
             seed = connection.execute(
                 "SELECT value FROM app_metadata WHERE key = 'seed_version'"
             ).fetchone()
@@ -133,8 +230,20 @@ def initialize_database(
                 ],
             )
             connection.executemany(
-                "INSERT INTO users (user_id, display_name) VALUES (?, ?)",
-                [(user.user_id, user.display_name) for user in seed_data.users],
+                """
+                INSERT INTO users (
+                    user_id, display_name, username, password_hash, is_demo
+                ) VALUES (?, ?, ?, ?, 1)
+                """,
+                [
+                    (
+                        user.user_id,
+                        user.display_name,
+                        f"demo_{user.user_id.lower()}",
+                        hash_password(_demo_password(user.user_id), user.user_id.encode()),
+                    )
+                    for user in seed_data.users
+                ],
             )
             connection.executemany(
                 """
@@ -278,7 +387,7 @@ def list_users(database_path: Path = DATABASE_PATH) -> list[UserResponse]:
     connection = _connect(database_path)
     try:
         rows = connection.execute(
-            "SELECT user_id, display_name FROM users ORDER BY user_id"
+            "SELECT user_id, display_name, username, email FROM users ORDER BY user_id"
         ).fetchall()
         return [UserResponse(**dict(row)) for row in rows]
     except sqlite3.Error as exc:
@@ -408,5 +517,198 @@ def delete_booking(booking_id: str, database_path: Path = DATABASE_PATH) -> None
             connection.execute("DELETE FROM bookings WHERE booking_id = ?", (booking_id,))
     except sqlite3.Error as exc:
         raise DataAccessError("The booking could not be deleted.") from exc
+    finally:
+        connection.close()
+
+
+def _auth_user_from_row(row: sqlite3.Row) -> AuthUserResponse:
+    return AuthUserResponse(
+        user_id=row["user_id"],
+        username=row["username"],
+        display_name=row["display_name"],
+        email=row["email"],
+    )
+
+
+def create_user_account(
+    username: str,
+    password: str,
+    email: str | None = None,
+    database_path: Path = DATABASE_PATH,
+) -> AuthUserResponse:
+    """Create a non-seeded account with a unique username and optional email."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    normalized_username = username.strip().lower()
+    normalized_email = email.strip().lower() if email and email.strip() else None
+    try:
+        with connection:
+            if connection.execute(
+                "SELECT 1 FROM users WHERE username = ? COLLATE NOCASE",
+                (normalized_username,),
+            ).fetchone():
+                raise AccountConflictError("That username is already in use.")
+            if normalized_email and connection.execute(
+                "SELECT 1 FROM users WHERE email = ? COLLATE NOCASE",
+                (normalized_email,),
+            ).fetchone():
+                raise AccountConflictError("That email is already in use.")
+
+            existing_ids = [
+                row["user_id"] for row in connection.execute("SELECT user_id FROM users")
+            ]
+            numeric_ids = [
+                int(value[1:])
+                for value in existing_ids
+                if value.startswith("U") and value[1:].isdigit()
+            ]
+            user_id = f"U{max(numeric_ids, default=0) + 1:03d}"
+            connection.execute(
+                """
+                INSERT INTO users (
+                    user_id, display_name, username, email, password_hash, is_demo
+                ) VALUES (?, ?, ?, ?, ?, 0)
+                """,
+                (
+                    user_id,
+                    normalized_username,
+                    normalized_username,
+                    normalized_email,
+                    hash_password(password),
+                ),
+            )
+            row = connection.execute(
+                "SELECT user_id, display_name, username, email FROM users WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            assert row is not None
+            return _auth_user_from_row(row)
+    except sqlite3.IntegrityError as exc:
+        raise AccountConflictError("That username or email is already in use.") from exc
+    except sqlite3.Error as exc:
+        raise DataAccessError("The account could not be created.") from exc
+    finally:
+        connection.close()
+
+
+def authenticate_user(
+    username: str, password: str, database_path: Path = DATABASE_PATH
+) -> AuthUserResponse:
+    """Verify an account password and return its public identity."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        row = connection.execute(
+            """
+            SELECT user_id, display_name, username, email, password_hash
+            FROM users WHERE username = ? COLLATE NOCASE
+            """,
+            (username.strip().lower(),),
+        ).fetchone()
+        if row is None or not row["password_hash"] or not verify_password(
+            password, row["password_hash"]
+        ):
+            raise AuthenticationError("Username or password is incorrect.")
+        return _auth_user_from_row(row)
+    except AuthenticationError:
+        raise
+    except sqlite3.Error as exc:
+        raise DataAccessError("The account could not be read.") from exc
+    finally:
+        connection.close()
+
+
+def get_auth_user(
+    user_id: str, database_path: Path = DATABASE_PATH
+) -> AuthUserResponse:
+    """Read one public account identity for session validation."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        row = connection.execute(
+            "SELECT user_id, display_name, username, email FROM users WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if row is None or not row["username"]:
+            raise AuthenticationError("Sign in to continue.")
+        return _auth_user_from_row(row)
+    except AuthenticationError:
+        raise
+    except sqlite3.Error as exc:
+        raise DataAccessError("The account could not be read.") from exc
+    finally:
+        connection.close()
+
+
+def record_search(
+    user_id: str,
+    query: str,
+    check_in: date | None,
+    check_out: date | None,
+    result_count: int,
+    database_path: Path = DATABASE_PATH,
+) -> None:
+    """Persist one successful search for the authenticated user."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        with connection:
+            connection.execute(
+                """
+                INSERT INTO search_history (
+                    user_id, query, check_in, check_out, result_count
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    query,
+                    check_in.isoformat() if check_in else None,
+                    check_out.isoformat() if check_out else None,
+                    result_count,
+                ),
+            )
+    except sqlite3.Error as exc:
+        raise DataAccessError("Search history could not be saved.") from exc
+    finally:
+        connection.close()
+
+
+def list_search_history(
+    user_id: str,
+    limit: int = 25,
+    database_path: Path = DATABASE_PATH,
+) -> list[SearchHistoryResponse]:
+    """Return only the authenticated user's most recent searches."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        rows = connection.execute(
+            """
+            SELECT search_id, query, check_in, check_out, result_count, searched_at
+            FROM search_history
+            WHERE user_id = ?
+            ORDER BY searched_at DESC, search_id DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        return [
+            SearchHistoryResponse(
+                search_id=row["search_id"],
+                query=row["query"],
+                check_in=date.fromisoformat(row["check_in"]) if row["check_in"] else None,
+                check_out=date.fromisoformat(row["check_out"]) if row["check_out"] else None,
+                result_count=row["result_count"],
+                searched_at=row["searched_at"],
+            )
+            for row in rows
+        ]
+    except sqlite3.Error as exc:
+        raise DataAccessError("Search history could not be read.") from exc
     finally:
         connection.close()

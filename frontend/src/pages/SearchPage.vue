@@ -9,6 +9,7 @@ import { createBooking, getRecommendedHotels, searchHotels } from '../services/a
 const props = defineProps({
   users: { type: Array, required: true },
   selectedUserId: { type: String, required: true },
+  authToken: { type: String, default: '' },
 })
 const emit = defineEmits(['update:selectedUserId', 'navigate'])
 
@@ -42,7 +43,7 @@ async function handleSearch(criteria) {
   resultCount.value = 0
 
   try {
-    const response = await searchHotels(criteria.location, criteria)
+    const response = await searchHotels(criteria.location, criteria, props.authToken)
     results.value = response.results
     resultCount.value = response.count
     hasSearched.value = true
@@ -52,6 +53,16 @@ async function handleSearch(criteria) {
   } finally {
     loading.value = false
   }
+}
+
+function handleClear() {
+  results.value = []
+  resultCount.value = 0
+  hasSearched.value = false
+  errorMessage.value = ''
+  bookingMessage.value = ''
+  bookingError.value = ''
+  bookingTripId.value = ''
 }
 
 async function handleBook(stay) {
@@ -119,6 +130,7 @@ onMounted(loadRecommendations)
           :selected-user-id="selectedUserId"
           :loading="loading"
           @update:selected-user-id="emit('update:selectedUserId', $event)"
+          @clear="handleClear"
           @search="handleSearch"
         />
       </section>

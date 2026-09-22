@@ -136,6 +136,10 @@ relationships, seeds SQLite from all four CSV files, and provides:
 - `GET /api/health`
 - `GET /api/hotels/search?name=<city, state, or hotel name>&check_in=<date>&check_out=<date>`
 - `GET /api/hotels/recommended?limit=<1–6>`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me` and `POST /api/auth/logout`
+- `GET /api/search-history` (signed-in account only)
 - `GET /api/users`
 - `GET /api/bookings?user_id=<user ID>`
 - `POST /api/bookings`
@@ -155,10 +159,29 @@ history, cancels by changing status while retaining the row, and offers a
 two-step delete control for user-created test bookings. Seed bookings cannot be
 deleted.
 
-`App.vue` owns the shared shell and URL-backed page navigation. `SearchPage.vue`
-and `BookingHistoryPage.vue` own page state, `HotelSearchForm.vue` owns
-accessible form behavior, `HotelResultsTable.vue` owns result-card
-presentation, and `services/api.js` owns HTTP requests and response checks.
+The search form also includes a compact **Clear selections** control. It resets
+the location, optional dates, visible search results, and transient booking
+feedback without deleting persisted booking-history records.
+
+The account pages provide sign-in and account creation. Usernames are unique,
+passwords are stored as salted PBKDF2 hashes, and an email is optional but must
+match a normal address shape and be unique when supplied. The six legacy demo
+travelers receive deterministic demo usernames (`demo_u001` through
+`demo_u006`) and passwords (`Demo-U001-Pass!` through `Demo-U006-Pass!`) so
+their seeded booking history remains testable. New accounts receive collision-
+free user IDs.
+
+Signed-in searches are recorded in SQLite and shown on the separate **Search
+history** page. History is filtered by the authenticated user, so switching
+accounts never exposes another user's searches. Search remains usable without
+sign-in, but those guest searches are not persisted.
+
+`App.vue` owns the shared shell, URL-backed page navigation, and the short-lived
+demo session. `LoginPage.vue`, `RegisterPage.vue`, and `SearchHistoryPage.vue`
+own account and activity views. `SearchPage.vue` and `BookingHistoryPage.vue`
+own page state, `HotelSearchForm.vue` owns accessible form behavior,
+`HotelResultsTable.vue` owns result-card presentation, and `services/api.js`
+owns HTTP requests and response checks.
 `RecommendedStays.vue` presents three
 distinct, deterministic best-value stays below the search panel. The responsive
 visual design retains the navy/blue palette and uses orange only for the primary
@@ -172,6 +195,10 @@ catalog recommendations, simulated booking, and a separate booking-history
 page. A demo user can create a booking, read it in history, cancel it while
 retaining the record, and delete a user-created test booking. Every action is
 initiated in Vue and sent through FastAPI to SQLite.
+
+The account milestone is also implemented: users can register and sign in,
+maintain a process-local demo session, and review search history isolated to
+their account. Guest search remains available without persistence.
 
 Recommendations select one stay per hotel by lowest estimated total, then lower
 nightly rate, earlier check-in date, and `trip_id`. Personalization based on
@@ -209,9 +236,9 @@ The implementation follows clear MVC responsibilities:
   rules and `controllers/database.py` for SQLite access, reference enforcement,
   and create/read/update/delete operations.
 
-Demo authentication and dynamic-pricing logic are lower-priority ideas. The
-current user records can support a transparent demo-user selector, not real
-credential authentication. Any future pricing demonstration should use
+Dynamic-pricing logic remains lower priority. Authentication is intentionally a
+demo session layer: tokens are process-local and expire when the backend
+restarts; it is not production identity management. Any future pricing demonstration should use
 disclosed, travel-relevant inputs such as an explicit holiday calendar; battery
 level or device type must not affect price.
 
@@ -243,6 +270,9 @@ No frontend lint or test script is currently configured. Follow
 - Recommended stays:
   `http://127.0.0.1:8000/api/hotels/recommended?limit=3`
 - Demo users: `http://127.0.0.1:8000/api/users`
+- Sign in: `http://127.0.0.1:5173/login`
+- Create account: `http://127.0.0.1:5173/register`
+- Search history: `http://127.0.0.1:5173/search-history`
 
 ## Current boundary
 
@@ -250,8 +280,10 @@ Official Prompts 01–04 cover setup, project-local environments, the Part 1 CSV
 API, and the initial Vue integration. Prompt 05 records that the project
 interpreter is ready for SQLite without installation. SQLite schema creation,
 one-time CSV seeding, date filtering, and booking CRUD are now implemented.
-Authentication, dynamic pricing, payments, flights, taxes, live availability,
-and personalized recommendations based on prior searches remain future work. See
+Production-grade authentication, dynamic pricing, payments, flights, taxes,
+live availability, and personalized hotel recommendations based on prior
+searches remain future work. Demo authentication and per-user search history
+are now implemented. See
 `expedia-lite-data/README.md` for the authoritative data dictionary.
 
 ## Working across tasks

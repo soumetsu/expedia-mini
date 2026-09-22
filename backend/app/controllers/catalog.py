@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from ..models import HotelSearchResponse, HotelStayResponse
-from .database import DATABASE_PATH, fetch_hotel_stays
+from .database import DATABASE_PATH, fetch_hotel_stays, record_search
 
 
 def search_hotel_stays(
@@ -14,6 +14,7 @@ def search_hotel_stays(
     check_in: date | None = None,
     check_out: date | None = None,
     database_path: Path = DATABASE_PATH,
+    user_id: str | None = None,
 ) -> HotelSearchResponse:
     """Search SQLite-backed stays by destination or partial hotel name."""
 
@@ -36,7 +37,10 @@ def search_hotel_stays(
         and (not check_in or stay.check_in >= check_in)
         and (not check_out or stay.check_out <= check_out)
     ]
-    return HotelSearchResponse(query=query, count=len(results), results=results)
+    response = HotelSearchResponse(query=query, count=len(results), results=results)
+    if user_id:
+        record_search(user_id, query, check_in, check_out, response.count, database_path)
+    return response
 
 
 def recommend_hotel_stays(

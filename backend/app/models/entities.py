@@ -37,6 +37,8 @@ class User:
 
     user_id: str
     display_name: str
+    username: str | None = None
+    email: str | None = None
 
 
 @dataclass(frozen=True)

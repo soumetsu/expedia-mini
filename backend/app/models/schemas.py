@@ -2,9 +2,17 @@
 
 from datetime import date
 from decimal import Decimal
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+EMAIL_PATTERN = re.compile(
+    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+)
 
 
 class HealthResponse(BaseModel):
@@ -34,6 +42,60 @@ class HotelSearchResponse(BaseModel):
 class UserResponse(BaseModel):
     user_id: str
     display_name: str
+    username: str | None = None
+    email: str | None = None
+
+
+class AuthUserResponse(BaseModel):
+    user_id: str
+    username: str
+    display_name: str
+    email: str | None = None
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=8, max_length=128)
+    email: str | None = Field(default=None, max_length=254)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9_.-]{1,30}[a-z0-9])?", normalized):
+            raise ValueError(
+                "Username must use 3-32 letters, numbers, dots, underscores, or hyphens."
+            )
+        return normalized
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip().lower()
+        if not EMAIL_PATTERN.fullmatch(normalized):
+            raise ValueError("Enter a valid email address or leave email blank.")
+        return normalized
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=32)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: AuthUserResponse
+
+
+class SearchHistoryResponse(BaseModel):
+    search_id: int
+    query: str
+    check_in: date | None = None
+    check_out: date | None = None
+    result_count: int = Field(ge=0)
+    searched_at: str
 
 
 class BookingCreateRequest(BaseModel):

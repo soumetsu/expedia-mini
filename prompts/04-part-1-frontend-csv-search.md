@@ -206,3 +206,11 @@ Completed and last rechecked on 2026-09-12:
 - At the final freshness check, FastAPI was restarted in managed session 73995
   with server process 10920, and Vite was restarted in managed session 20984
   with listener process 16036. Both local URLs returned HTTP 200.
+
+## Subsequent UI maintenance check
+
+The current search form keeps the destination input primary and exposes a
+compact, keyboard-accessible **Clear selections** action beside the fixed-date
+note. The action clears the active destination, optional dates, visible search
+results, and transient booking feedback; it does not delete persisted booking
+history. Verify this behavior through the browser after any frontend change.

@@ -97,6 +97,132 @@ dd {
   color: #ffffff;
 }
 
+.site-nav .header-action,
+.header-action {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 750;
+  padding: 0.55rem 0.75rem;
+  text-decoration: none;
+}
+
+.site-nav .header-action:hover,
+.header-action:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.signed-in-user {
+  color: #b9d9e8;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.account-page {
+  min-height: calc(100vh - 4.5rem);
+  padding: 4rem 0;
+}
+
+.account-layout {
+  display: grid;
+  place-items: start center;
+}
+
+.account-card {
+  width: min(100%, 32rem);
+  padding: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1.4rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.account-card h1 {
+  margin-bottom: 0.65rem;
+  color: var(--navy);
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.account-intro {
+  color: #617989;
+  line-height: 1.6;
+}
+
+.account-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.6rem;
+}
+
+.account-form .primary-action {
+  width: 100%;
+}
+
+.account-switch {
+  margin: 1.5rem 0 0;
+  color: #617989;
+  text-align: center;
+}
+
+.account-switch .text-action {
+  margin-left: 0.2rem;
+}
+
+.search-history-card {
+  padding: 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: 1.2rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.search-history-card .section-heading {
+  align-items: center;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+
+.search-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: #f9fbfc;
+}
+
+.search-history-item h3,
+.search-history-item p {
+  margin-bottom: 0;
+}
+
+.search-history-item h3 {
+  color: var(--navy);
+}
+
+.search-history-item p {
+  margin-top: 0.25rem;
+  color: #617989;
+  font-size: 0.88rem;
+}
+
+.history-count {
+  color: var(--blue);
+  font-size: 0.86rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .hero {
   position: relative;
   overflow: hidden;
@@ -353,9 +479,34 @@ input[aria-invalid="true"] {
 }
 
 .fixed-date-note {
-  margin: 0.55rem 0 0;
+  margin: 0;
   color: #71838e;
   font-size: 0.76rem;
+}
+
+.search-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.55rem;
+}
+
+.clear-action {
+  min-height: 2rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #aebdc6;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #526b79;
+  font-size: 0.76rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.clear-action:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
 }
 
 .field-hint {
@@ -960,12 +1111,29 @@ tbody tr:last-child td {
   }
 
   .site-nav {
+    flex-wrap: wrap;
     justify-content: space-between;
   }
 
   .site-nav a {
     flex: 1;
     text-align: center;
+  }
+
+  .signed-in-user,
+  .site-nav .header-action {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .account-card,
+  .search-history-card {
+    padding: 1.35rem;
+  }
+
+  .search-history-item {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .hero-copy > p:not(.eyebrow) {
@@ -983,6 +1151,11 @@ tbody tr:last-child td {
 
   .search-details-row {
     gap: 0.65rem;
+  }
+
+  .search-form-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .result-price-action {

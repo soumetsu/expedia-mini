@@ -2,17 +2,17 @@
 
 ## Handoff status
 
-- Last updated: `2026-09-21 23:48 EDT`
-- Claims last verified: `2026-09-21 23:48 EDT`
-- Update trigger: The reviewed frontend and SQLite/MVC work was committed and
-  pushed to the current GitHub remote.
+- Last updated: `2026-09-22 01:57 EDT`
+- Claims last verified: `2026-09-22 01:57 EDT`
+- Update trigger: Implemented demo account registration/login and per-user
+  SQLite search history across the FastAPI and Vue MVC layers.
 
 ## Objective
 
-Publish the completed SQLite/MVC milestone and responsive booking interface.
-The next independent product enhancement is recent-search personalization.
-Authentication and dynamic pricing remain lower priority and require a
-separate request.
+Extend the completed SQLite/MVC milestone with demo authentication and isolated
+search history while preserving the existing search and booking workflows.
+Production identity management and recommendation personalization remain later
+enhancements.
 
 ## Git publication state
 
@@ -35,7 +35,10 @@ separate request.
   unique IDs, dates, rates, statuses, and all foreign references.
 - `controllers/database.py` is the only application SQLite access layer. It
   owns the schema, foreign keys, indexes, idempotent seed, joined catalog reads,
-  users, and booking create/read/cancel/delete transactions.
+  account credentials, per-user search history, and booking
+  create/read/cancel/delete transactions.
+- `controllers/security.py` hashes and verifies passwords with salted PBKDF2;
+  `controllers/auth.py` issues process-local bearer tokens for demo sessions.
 - `controllers/catalog.py` receives typed SQLite stay rows from the database
   controller and applies search/date/recommendation business rules.
 - `models/entities.py` defines Hotel, Trip, User, Booking, and SeedData.
@@ -49,6 +52,13 @@ separate request.
   never accesses CSV or SQLite directly.
 - Booking create, history/read, cancel while retaining, and test-record delete
   remain available in the frontend. Seed bookings remain protected from delete.
+- The search form has a compact **Clear selections** action. It clears the
+  active destination, optional dates, visible search results, and transient
+  booking feedback without deleting persisted booking-history records.
+- Separate Vue sign-in, create-account, and search-history pages are available.
+  Account creation enforces unique usernames, optional unique valid emails, and
+  minimum eight-character passwords. Authenticated searches are recorded in
+  SQLite and history is filtered by the current user token.
 - The supplied CSV files were not modified.
 
 ## MVC fit decision
@@ -74,6 +84,21 @@ recorded in `AGENTS.md`.
 - Live API after restart: health `ok`; Boston returned T001, T002, T009, T010.
 - Final Vite-proxied checks: frontend HTTP 200, health `ok`, Boston count 4,
   six demo users, and zero remaining U006 test bookings.
+- Latest frontend production build: Vite transformed 16 modules successfully
+  after the clear-selection UI change.
+- Latest frontend production build after account pages: Vite transformed 19
+  modules successfully.
+- Full backend suite after auth changes: 29 tests passed, including four new
+  auth/history tests for hashed credentials, duplicate validation, email
+  validation, and two-user history isolation.
+- Live auth/browser check: migrated `demo_u001` signed in, `/auth/me` returned
+  the same identity, a Boston search appeared on `/search-history`, and the
+  registration page exposed the account fields. The synthetic history row was
+  removed afterward.
+- Browser smoke check: submitted a Boston search, activated **Clear
+  selections**, and confirmed both date fields and the location were empty,
+  the four result cards and transient state were cleared, and recommended
+  stays remained.
 - Live CRUD smoke test created B007 for U006/T011, read it, cancelled it while
   retaining one row, deleted that exact temporary record, and confirmed U006
   history returned to zero rows.
@@ -82,7 +107,7 @@ recorded in `AGENTS.md`.
 
 ## Running services
 
-- FastAPI session `75432`, process `18116`, URL `http://127.0.0.1:8000`
+- FastAPI session `70669`, process `31620`, URL `http://127.0.0.1:8000`
 - Vite session `57149`, process `27812`, URL `http://127.0.0.1:5173/`
 
 These are timestamped process claims; verify reachability before reusing them.
@@ -98,21 +123,26 @@ These are timestamped process claims; verify reachability before reusing them.
   and route behavior.
 - Updated `AGENTS.md`, `README.md`, `report.md`, `docs/design.md`,
   `docs/verification.md`, Prompt 05 follow-on status, and this handoff.
-- Earlier uncommitted frontend work remains in the shared working tree and must
-  be preserved.
+- Updated the implemented behavior in `README.md`, the integrated smoke steps
+  in `docs/verification.md`, and the maintenance note in Prompt 04.
+- Added authentication/search-history controllers, contracts, Vue pages,
+  focused tests, and `prompts/06-demo-authentication-and-search-history.md`.
 
 ## Remaining limitations
 
 - Search dates filter fixed supplied trips; there is no arbitrary inventory.
 - The application exposes full CRUD for bookings, not administrative CRUD
   screens for hotels, trips, or users.
-- Recommendations do not yet learn from recent searches.
-- Demo users have no credentials; real authentication is not implemented.
+- Recommendations do not yet re-rank using recent searches.
+- Sessions are process-local demo bearer tokens; production identity,
+  persistent sessions, password reset, and account deletion are not implemented.
 - No rooms, occupancy, amenities, reviews, taxes, payments, flights, cars,
   packages, live demand, or dynamic pricing are represented by the data.
-- The working tree is intentionally dirty and has not been committed.
+- The current clear-selection UI and documentation edits are uncommitted in the
+  shared working tree; preserve them if continuing in another thread.
 
 ## Exact next action
 
-Add recent-search persistence and use it as a transparent, deterministic input
-to personalized recommendation ranking without inventing unsupported fields.
+Review and, if desired, commit/publish the verified authentication and
+search-history milestone. The next product enhancement is transparent,
+deterministic recommendation ranking informed by the stored search history.

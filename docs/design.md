@@ -14,7 +14,8 @@ explained recommendations, and a separate booking-history page. It uses strong
 hierarchy, an orange primary search action against the navy/blue palette,
 compact mobile stacking, and explicit loading, empty, success, and error
 feedback. Create, history/read, cancellation, and test-record deletion are all
-available from the Vue interface.
+available from the Vue interface. Separate sign-in, account creation, and
+per-user search-history pages provide a lightweight demo identity layer.
 
 The current files support hotel name, city/state, fixed check-in/check-out
 dates, trip labels, nightly price, derived total price, demo users, and booking
@@ -39,9 +40,12 @@ those fields do not exist.
 ### Frontend
 
 The Vue 3 application in `frontend/` owns the browser interface. `src/App.vue`
-owns the shared shell, demo-user state, and URL-backed navigation.
+owns the shared shell, demo-user state, short-lived auth session, and URL-backed
+navigation.
 `SearchPage.vue` coordinates search, recommendations, and creation;
 `BookingHistoryPage.vue` coordinates history, cancellation, and deletion.
+`LoginPage.vue` and `RegisterPage.vue` own account forms, while
+`SearchHistoryPage.vue` renders the signed-in user's activity.
 `HotelSearchForm.vue` owns the primary location field, secondary date/user
 controls, validation, Enter submission, and busy state. `RecommendedStays.vue`
 owns best-value cards and the catalog-only personalization note.
@@ -62,6 +66,9 @@ and generated API documentation. Application routes use the `/api` prefix.
 `GET /api/hotels/recommended?limit=...` returns deterministic best-value stays
 from distinct hotels. `/api/users` and `/api/bookings` expose the demo traveler
 and booking lifecycle, including `PATCH .../cancel` and protected deletion.
+`/api/auth/register`, `/api/auth/login`, `/api/auth/me`, and
+`/api/auth/logout` manage demo sessions; `/api/search-history` returns only the
+current token's history.
 
 ### Backend
 
@@ -72,9 +79,12 @@ responsibilities in Vue components or route handlers.
 `controllers/seed.py` reads and validates the four CSV files only during first
 initialization. `controllers/database.py` is the sole SQLite access layer and
 owns schema creation, foreign keys, one-time seeding, joined reads,
-transactions, and booking CRUD. `controllers/catalog.py` applies search and
-recommendation rules to typed stays returned by the database controller.
-`routes.py` is a thin HTTP adapter.
+transactions, account credentials, search-history records, and booking CRUD.
+`controllers/auth.py` creates process-local bearer sessions while delegating
+credential reads and writes to the database controller. `controllers/catalog.py`
+applies search and recommendation rules to typed stays returned by the database
+controller and records authenticated searches. `routes.py` is a thin HTTP
+adapter.
 
 ### CSV seed data
 
@@ -155,12 +165,15 @@ preserves existing IDs, adds seed records only once, and assigns collision-free
 IDs to new bookings. Cancellation updates `status` to `cancelled` and retains
 the history row; deletion is limited to user-created test bookings.
 
-Demo authentication and dynamic pricing are deliberately lower priority. The
-existing users can support a demo identity selector, but they contain no
-credentials. A later pricing demonstration may use a disclosed holiday/date
-rule and show the base price and adjustment separately. Battery state and
-device type are not acceptable pricing inputs because they are unrelated to
-the stored travel model and would make pricing opaque and inconsistent.
+Demo authentication is implemented with unique usernames, optional unique
+emails, PBKDF2 password hashes, and process-local bearer tokens. Search history
+rows reference a user and are only returned for that authenticated user. A
+production identity provider, durable sessions, password reset, and account
+management remain out of scope. A later pricing demonstration may use a
+disclosed holiday/date rule and show the base price and adjustment separately.
+Battery state and device type are not acceptable pricing inputs because they are
+unrelated to the stored travel model and would make pricing opaque and
+inconsistent.
 
 ## Implemented search, recommendation, and booking data flow
 
@@ -185,6 +198,11 @@ the stored travel model and would make pricing opaque and inconsistent.
 9. `/bookings` reads joined history for the selected demo user. Cancel sends a
    status-update request and retains the row; delete requires a two-step UI
    confirmation and is accepted only for a user-created test booking.
+10. If signed in, the search request includes a bearer token and the catalog
+    controller records the query, optional date window, and result count in
+    `search_history` for that user only.
+11. `/search-history` requests the authenticated user's recent searches. A
+    different signed-in account receives a separate list.
 
 The browser never reads the CSV files directly. The frontend retains each
 complete response row in state while displaying hotel name, city/state, stay ID
@@ -193,7 +211,8 @@ and name, dates, nights, nightly rate, and estimated price.
 ## Current boundary
 
 The FastAPI search, city/state and date filtering, catalog recommendations,
-responsive Vue pages, SQLite seeding, and booking CRUD are implemented.
-Personalized recommendations based on prior searches, authentication, dynamic
-pricing, payments, flights, taxes, and live availability remain outside the
-current implementation.
+responsive Vue pages, SQLite seeding, booking CRUD, demo authentication, and
+per-user search history are implemented. Personalized recommendation ranking
+based on prior searches, production identity management, dynamic pricing,
+payments, flights, taxes, and live availability remain outside the current
+implementation.

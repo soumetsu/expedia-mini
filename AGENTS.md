@@ -27,8 +27,9 @@ These rules apply to the entire repository.
 - Treat the responsive location/hotel search, optional fixed-date filters,
   deterministic recommendation cards, simulated booking, and separate booking
   history page as the implemented interface baseline.
-- SQLite persistence and the frontend booking lifecycle are implemented;
-  recent-search personalization remains a future enhancement.
+- SQLite persistence, the frontend booking lifecycle, demo account
+  authentication, and per-user search history are implemented; personalized
+  recommendation ranking remains a future enhancement.
 - Every booking lifecycle action must be available through the frontend: create
   a booking, read it in history, cancel it by updating its status while keeping
   the record, and delete a test booking. Do not require the user to edit CSV or
@@ -48,7 +49,10 @@ These rules apply to the entire repository.
   define entities, fields, stored records, and relationships; Vue components
   form the view; FastAPI routes plus a focused database controller/service
   coordinate validation and CRUD operations.
-- Demo authentication and dynamic-pricing experiments are lower priority and
+- Demo authentication is implemented as a process-local bearer-session layer;
+  passwords must be hashed and credentials must never be stored in plaintext.
+  Search history must always be filtered by the authenticated user. Production
+  authentication and dynamic-pricing experiments remain lower priority and
   require separate authorization. Never vary price based on battery level or
   device type. Any later pricing demonstration must be transparent,
   deterministic, and based on disclosed travel-domain inputs such as trip dates
@@ -62,7 +66,9 @@ These rules apply to the entire repository.
   not open SQLite, execute SQL, or depend on Vue.
 - Keep database access and business workflows under `backend/app/controllers/`.
   `database.py` is the only application module that opens SQLite and owns
-  schema creation, one-time seeding, reference enforcement, and booking CRUD.
+  schema creation, one-time seeding, reference enforcement, account records,
+  search-history persistence, and booking CRUD. `auth.py` may own process-local
+  session tokens but must call the database controller for credential work.
   Separate controllers such as `catalog.py` may call it through typed model
   contracts; they must not bypass it with direct SQL.
 - Keep `routes.py` as a thin HTTP adapter: validate web inputs, call a

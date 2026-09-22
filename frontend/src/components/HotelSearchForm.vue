@@ -15,6 +15,7 @@ const emit = defineEmits([
   'update:checkIn',
   'update:checkOut',
   'update:selectedUserId',
+  'clear',
   'search',
 ])
 const validationMessage = ref('')
@@ -42,6 +43,15 @@ function submitSearch() {
   validationMessage.value = ''
   emit('update:modelValue', location)
   emit('search', { location, checkIn: props.checkIn, checkOut: props.checkOut })
+}
+
+function clearSelections() {
+  validationMessage.value = ''
+  emit('update:modelValue', '')
+  emit('update:checkIn', '')
+  emit('update:checkOut', '')
+  emit('clear')
+  input.value?.focus()
 }
 </script>
 
@@ -120,7 +130,12 @@ function submitSearch() {
       </div>
     </div>
 
-    <p class="fixed-date-note">Dates narrow the supplied fixed-date stay catalog.</p>
+    <div class="search-form-footer">
+      <p class="fixed-date-note">Dates narrow the supplied fixed-date stay catalog.</p>
+      <button class="clear-action" type="button" :disabled="loading" @click="clearSelections">
+        Clear selections
+      </button>
+    </div>
     <p v-if="validationMessage" id="search-error" class="field-error" role="alert">
       {{ validationMessage }}
     </p>
