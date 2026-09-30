@@ -12,7 +12,10 @@ defineProps({
     type: String,
     required: true,
   },
+  bookingTripId: { type: String, default: '' },
 })
+
+defineEmits(['book'])
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -38,11 +41,12 @@ function formatDate(value) {
   <section class="recommendations" aria-labelledby="recommendations-title">
     <div class="section-heading">
       <div>
-        <p class="eyebrow">A smart place to start</p>
-        <h2 id="recommendations-title">Recommended stays</h2>
+        <p class="eyebrow">Separate classroom catalog</p>
+        <h2 id="recommendations-title">Fictional booking sandbox</h2>
       </div>
       <p class="section-intro">
-        Selected from the lowest estimated totals, with earlier dates used to break ties.
+        These supplied examples preserve the simulated booking workflow. They are not live search
+        results and do not represent real availability.
       </p>
     </div>
 
@@ -83,13 +87,21 @@ function formatDate(value) {
             <p><strong>{{ formatUsd(stay.estimated_stay_price_usd) }}</strong> estimated total</p>
             <span>{{ formatUsd(stay.nightly_rate_usd) }}/night</span>
           </div>
+          <button
+            class="book-action"
+            type="button"
+            :disabled="Boolean(bookingTripId)"
+            @click="$emit('book', stay)"
+          >
+            {{ bookingTripId === stay.trip_id ? 'Creating demo booking…' : 'Create demo booking' }}
+          </button>
         </div>
       </article>
     </div>
 
     <p class="recommendation-note">
-      Recommendations use the current catalog only. Personalized suggestions based on recent
-      searches are planned for a future update.
+      Fictional names, dates, and prices come from the classroom SQLite catalog and are kept
+      visually separate from Geoapify hotel results.
     </p>
   </section>
 </template>

@@ -1,4 +1,4 @@
-const HOTEL_SEARCH_PATH = '/api/hotels/search'
+const NEARBY_HOTELS_PATH = '/api/hotels/nearby'
 const HOTEL_RECOMMENDATIONS_PATH = '/api/hotels/recommended'
 const USERS_PATH = '/api/users'
 const BOOKINGS_PATH = '/api/bookings'
@@ -57,22 +57,31 @@ function validateCollection(data, fallbackMessage) {
   return data
 }
 
-export async function searchHotels(
-  location,
-  { checkIn = '', checkOut = '' } = {},
-  token = '',
-) {
-  const parameters = new URLSearchParams({ name: location })
-  if (checkIn) parameters.set('check_in', checkIn)
-  if (checkOut) parameters.set('check_out', checkOut)
+function validateNearbyCollection(data) {
+  validateCollection(data, 'The live hotel search service')
+  if (
+    !data.center ||
+    typeof data.center.postcode !== 'string' ||
+    !Number.isFinite(data.center.latitude) ||
+    !Number.isFinite(data.center.longitude) ||
+    !['postcode boundary', 'expanded radius'].includes(data.search_scope) ||
+    typeof data.hotel_source !== 'string' ||
+    typeof data.postcode_source !== 'string' ||
+    (data.search_scope === 'expanded radius' && !Number.isInteger(data.search_radius_miles))
+  ) {
+    throw new ApiRequestError('The live hotel search service returned an unexpected response.')
+  }
+  return data
+}
 
-  return validateCollection(
+export async function searchNearbyHotels(postcode, token = '', limit = 20) {
+  const parameters = new URLSearchParams({ postcode, limit: String(limit) })
+  return validateNearbyCollection(
     await requestJson(
-      `${HOTEL_SEARCH_PATH}?${parameters.toString()}`,
+      `${NEARBY_HOTELS_PATH}?${parameters.toString()}`,
       token ? { headers: { Authorization: `Bearer ${token}` } } : {},
-      'The search service',
+      'The live hotel search service',
     ),
-    'The search service',
   )
 }
 

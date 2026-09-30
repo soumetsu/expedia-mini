@@ -17,6 +17,52 @@ EMAIL_PATTERN = re.compile(
 
 class HealthResponse(BaseModel):
     status: str
+    geoapify_api_key_status: Literal["key is configured", "key is not configured"]
+
+
+class PostcodeCenterResponse(BaseModel):
+    """The provider's representative point for a resolved U.S. ZIP code."""
+
+    postcode: str
+    country_code: Literal["us"]
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    locality: str | None = None
+    state: str | None = None
+
+
+class NearbyHotelResponse(BaseModel):
+    """One live hotel place returned by Geoapify Places."""
+
+    place_id: str
+    name: str | None = None
+    formatted_address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postcode: str | None = None
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    distance_meters: int = Field(ge=0)
+    distance_miles: float = Field(ge=0)
+    inside_searched_postcode: bool | None = None
+
+
+class NearbyHotelSearchResponse(BaseModel):
+    """Live hotels ranked from a resolved ZIP reference point."""
+
+    query: str
+    count: int = Field(ge=0)
+    search_scope: Literal["postcode boundary", "expanded radius"] = (
+        "postcode boundary"
+    )
+    search_radius_miles: int | None = Field(default=None, ge=1)
+    hotel_source: Literal["Geoapify Places API"] = "Geoapify Places API"
+    postcode_source: Literal["Geoapify Geocoding API"] = "Geoapify Geocoding API"
+    distance_basis: Literal["straight-line distance from ZIP center"] = (
+        "straight-line distance from ZIP center"
+    )
+    center: PostcodeCenterResponse
+    results: list[NearbyHotelResponse]
 
 
 class HotelStayResponse(BaseModel):

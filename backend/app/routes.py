@@ -1,6 +1,7 @@
 """Thin FastAPI HTTP adapters for Expedia-Mini controllers."""
 
 from datetime import date
+import re
 from typing import Annotated
 
 from fastapi import (
@@ -13,6 +14,7 @@ from fastapi import (
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from .config import geoapify_api_key_configured
 from .controllers.auth import (
     login_account,
     logout_account,
@@ -20,6 +22,13 @@ from .controllers.auth import (
     user_id_for_token,
 )
 from .controllers.catalog import recommend_hotel_stays, search_hotel_stays
+from .controllers.geocoding import (
+    DEFAULT_HOTEL_LIMIT,
+    MAX_HOTEL_LIMIT,
+    GeoapifyConfigurationError,
+    GeoapifyProviderError,
+    search_hotels_by_postcode,
+)
 from .controllers.database import (
     AccountConflictError,
     AuthenticationError,
@@ -32,6 +41,7 @@ from .controllers.database import (
     list_bookings as list_booking_records,
     list_search_history as list_search_history_records,
     list_users as list_user_records,
+    record_search,
 )
 from .controllers.seed import SeedDataError
 from .models import (
@@ -41,6 +51,7 @@ from .models import (
     HealthResponse,
     HotelSearchResponse,
     LoginRequest,
+    NearbyHotelSearchResponse,
     RegisterRequest,
     SearchHistoryResponse,
     UserResponse,
@@ -70,7 +81,12 @@ def _required_user_id(credentials: HTTPAuthorizationCredentials | None) -> str:
 async def health_check() -> HealthResponse:
     """Confirm that the backend is running."""
 
-    return HealthResponse(status="ok")
+    key_status = (
+        "key is configured"
+        if geoapify_api_key_configured()
+        else "key is not configured"
+    )
+    return HealthResponse(status="ok", geoapify_api_key_status=key_status)
 
 
 @router.post(
@@ -141,6 +157,65 @@ async def logout(
 ) -> Response:
     logout_account(_token_from_credentials(credentials))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/hotels/nearby",
+    response_model=NearbyHotelSearchResponse,
+    tags=["hotels"],
+)
+async def nearby_hotels(
+    postcode: Annotated[str, Query(min_length=5, max_length=5)],
+    limit: Annotated[int, Query(ge=1, le=MAX_HOTEL_LIMIT)] = DEFAULT_HOTEL_LIMIT,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
+) -> NearbyHotelSearchResponse:
+    """Return live Geoapify hotels inside or near one resolved U.S. ZIP."""
+
+    requested_postcode = postcode.strip()
+    if not re.fullmatch(r"\d{5}", requested_postcode):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Enter a valid 5-digit U.S. ZIP code.",
+        )
+
+    try:
+        user_id = None
+        token = _token_from_credentials(credentials)
+        if token:
+            user_id = user_id_for_token(token)
+        response = search_hotels_by_postcode(requested_postcode, limit)
+        if response is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"ZIP code {requested_postcode} could not be resolved.",
+            )
+        if user_id:
+            record_search(user_id, requested_postcode, None, None, response.count)
+        return response
+    except HTTPException:
+        raise
+    except AuthenticationError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+    except GeoapifyConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Live hotel search is not configured.",
+        ) from exc
+    except GeoapifyProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The live hotel provider request failed.",
+        ) from exc
+    except (DataAccessError, SeedDataError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Search history could not be saved.",
+        ) from exc
 
 
 @router.get(

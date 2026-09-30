@@ -20,13 +20,15 @@ The backend environment is installed under `backend/.venv/`. Run its tests from
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The backend suite contains 25 tests for stable seed paths, validation of all
-four CSV files and their relationships, hotel/city/state/date search,
-deterministic distinct-hotel recommendations, calculated display fields,
-SQLite seeding and CRUD, seed-record protection, route registration, health
-behavior, and validation. One test changes a hotel name directly in a temporary
-post-seed SQLite database and proves search returns that changed value, which
-guards against accidental CSV reads during application requests.
+The backend suite contains 47 tests. In addition to the SQLite, catalog,
+booking, authentication, and search-history coverage, mocked Geoapify tests
+verify exact U.S. ZIP resolution, postcode boundary and hotel-category request
+parameters, exact returned-postcode filtering, 5/15/30-mile circle fallback,
+first-populated-radius stopping, defensive radius checks, missing names and
+postcodes, invalid coordinates, normalized-name deduplication, Haversine
+distance ordering, successful empty results, source metadata, missing
+configuration, and provider failure. No automated test sends a live provider
+request.
 
 Start the API from `backend/`:
 
@@ -34,11 +36,20 @@ Start the API from `backend/`:
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Verify that `GET http://127.0.0.1:8000/api/health` returns HTTP 200 and:
+Verify that `GET http://127.0.0.1:8000/api/health` returns HTTP 200. Its
+`geoapify_api_key_status` is either `key is configured` or
+`key is not configured`; it must never return the key itself.
 
-```json
-{"status":"ok"}
-```
+The live route is
+`GET http://127.0.0.1:8000/api/hotels/nearby?postcode=<ZIP>&limit=20`.
+With a configured key, `postcode=10036` should resolve and return only hotels
+whose returned postcode is `10036`; provider data and counts can change. A
+valid resolved ZIP with no exact hotel matches expands through live 5-, 15-,
+and 30-mile Geoapify circle searches. It returns HTTP 200 with `count: 0` only
+when the 30-mile search is also empty.
+An invalid ZIP returns 422, an unresolved ZIP returns 404, missing configuration
+returns 503, and a provider failure returns 502. The removed
+`/api/demo/zip-location` route should return 404.
 
 Verify `GET /api/hotels/search?name=%20hArBoR%20lAnTeRn%20` returns count 2 with
 T001 and T009. Verify `name=Boston` returns T001, T002, T009, and T010. Verify
@@ -58,7 +69,7 @@ There is no configured frontend lint or test script. Do not add a test framework
 without separate approval. `npm run build` is the current automated frontend
 check.
 
-## Integrated Part 1 smoke test
+## Integrated live-search smoke test
 
 1. Confirm ports 8000 and 5173 are available. Do not stop unrelated processes.
 2. Start the backend with the command above.
@@ -68,32 +79,42 @@ check.
    npm run dev -- --host 127.0.0.1 --port 5173
    ```
 
-4. Confirm `GET http://127.0.0.1:8000/api/health` returns HTTP 200 and
-   `{"status":"ok"}`.
-5. Confirm a direct `Boston` search returns count 4 and trip IDs T001, T002,
-   T009, and T010. Confirm `No Such Expedia-Mini Hotel` returns count 0.
-6. Confirm the recommendations endpoint returns three distinct hotels in the
-   verified T008, T005, T001 order.
-7. Open `http://127.0.0.1:5173/`. Confirm the page has a visible location label,
-   Find stays button, and three recommended cards below the search panel.
-8. Submit whitespace-padded `bOsToN` with Enter. Confirm the input is trimmed,
-   the count is 4, and the cards match the API values for T001, T002, T009, and
-   T010. Confirm results appear above recommendations.
-9. Search for `No Such Expedia-Mini Hotel` with the button. Confirm the old
-   table is removed and a clear no-results message appears.
-10. Submit a blank value and confirm that inline validation prevents a request.
-11. After a populated search, activate **Clear selections**. Confirm that the
-    location and optional date fields, visible search results, and transient
-    booking feedback are cleared, while persisted booking history is unchanged.
-12. If testing failure feedback, stop only a backend process started for this
-    check, search once, confirm the distinct API-error message, and restart the
-    backend before finishing.
-13. At a narrow viewport, confirm the primary search, secondary date/user
-    controls, stay cards, and recommendation cards stack cleanly.
-14. Confirm a clean browser run has no warning or error console entries, and
+4. Confirm health returns HTTP 200 without exposing the configured key.
+5. Confirm `postcode=ABCDE` returns 422 and the removed demo route returns 404.
+6. Confirm `postcode=16802` currently reports `search_scope: expanded radius`,
+   `search_radius_miles: 5`, live Geoapify source fields, and nearby records
+   labeled with their returned postcodes. Provider data and counts can change.
+7. Confirm `postcode=10036` returns hotel records and every result's `postcode`
+   is `10036`. Provider counts can change; the September 29 live check returned
+   16 normalized hotel names after deduplication.
+8. Open `http://127.0.0.1:5173/`. Confirm the primary field accepts only five
+   numeric characters and rejects an incomplete ZIP before a request.
+9. Submit `16802`; confirm the page names all three sources, explains the first
+   populated radius, labels results outside the ZIP, and displays distance text
+   with Nearby/Far/Very far severity and blue/orange/red thresholds.
+10. Submit `10036`; confirm it remains an exact-boundary result with live cards
+    and an OpenStreetMap-attributed Leaflet
+    map appear, with no live price, rating, review, room, availability, or
+    booking claim.
+11. Select a card. Confirm its numbered marker changes state, the map pans or
+    keeps it visible, and a safe-text tooltip names the same hotel.
+12. Select a different marker. Confirm the matching card becomes selected and
+    is scrolled/focused into view.
+13. Confirm each live card exposes a separate **Open address in Google Maps**
+    link. Inspect that it uses an encoded `https://www.google.com/maps/search/`
+    URL with `api=1`, opens a new tab, and does not replace or activate the
+    card's Leaflet-selection action. For a provider record without an address,
+    confirm the link label and query use its returned coordinates instead.
+14. Activate **Clear ZIP** and confirm the ZIP, list, map, and request feedback
+    are removed without changing booking records.
+15. At a narrow viewport, confirm the map appears above the readable card list;
+    at a wide viewport, confirm the list and map use two columns.
+16. Confirm the visibly separated fictional booking sandbox still creates a
+    demo booking and that history/cancel/delete remain available on `/bookings`.
+17. Confirm a clean browser run has no warning or error console entries, and
     inspect both service logs for unexpected errors.
 
-Store browser evidence under `docs/screenshots/part1/`. Prompt 04 evidence uses:
+Earlier Part 1 browser evidence remains under `docs/screenshots/part1/`:
 
 - `hotel-search-success.png`
 - `hotel-search-no-results.png`

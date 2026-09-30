@@ -1,9 +1,9 @@
 # Expedia-Mini
 
-Expedia-Mini is a small full-stack travel application for searching the
-supplied hotel trips and managing simulated bookings. The project
-uses a FastAPI backend, a Vue frontend, and the supplied fictional data in
-`expedia-lite-data/`.
+Expedia-Mini is a small full-stack travel application with live ZIP-based hotel
+discovery plus a clearly separated fictional booking exercise. FastAPI proxies
+Geoapify Geocoding and Places requests, Vue renders the connected results and
+Leaflet map, and SQLite preserves the supplied classroom booking data.
 
 ## Project layout
 
@@ -27,6 +27,8 @@ uses a FastAPI backend, a Vue frontend, and the supplied fictional data in
 |   |   |-- components/
 |   |   |   |-- HotelResultsTable.vue
 |   |   |   |-- HotelSearchForm.vue
+|   |   |   |-- HotelMap.vue
+|   |   |   |-- NearbyHotelList.vue
 |   |   |   `-- RecommendedStays.vue
 |   |   |-- services/
 |   |   |   `-- api.js
@@ -65,7 +67,7 @@ uses a FastAPI backend, a Vue frontend, and the supplied fictional data in
 - Python standard-library `sqlite3` backed by SQLite 3.50.4
 - FastAPI 0.141.1 and Uvicorn 0.52.4
 - Node.js v24.20.0 and npm 11.19.0
-- Vue 3.5.42, Vite 7.3.6, and `@vitejs/plugin-vue` 6.0.8 in
+- Vue 3.5.42, Leaflet 1.9.4, Vite 7.3.6, and `@vitejs/plugin-vue` 6.0.8 in
   `frontend/node_modules/`
 
 Do not reinstall a working environment. Agents must obtain explicit approval
@@ -101,6 +103,14 @@ cd backend
 The project-local environment and requirements are already installed in this
 workspace.
 
+## Backend environment configuration
+
+The backend configuration helper at `backend/app/config.py` loads the
+project-root `.env` file at `.env` and reads `GEOAPIFY_API_KEY`. The health
+endpoint reports only whether that setting is configured; it never returns the
+key value. Restart the backend process after editing `.env` so the new setting
+is loaded.
+
 ## Run and build the frontend
 
 In a second terminal:
@@ -134,6 +144,7 @@ The backend keeps the supplied CSV files unchanged, validates their
 relationships, seeds SQLite from all four CSV files, and provides:
 
 - `GET /api/health`
+- `GET /api/hotels/nearby?postcode=<ZIP>&limit=<1–50>`
 - `GET /api/hotels/search?name=<city, state, or hotel name>&check_in=<date>&check_out=<date>`
 - `GET /api/hotels/recommended?limit=<1–6>`
 - `POST /api/auth/register`
@@ -152,16 +163,42 @@ the fixed-date catalog; they do not imply arbitrary availability. Search
 returns one joined row per available stay with dates, calculated nights, and
 estimated price. Blank input and invalid date windows are rejected.
 
-The Vue interface uses a location-oriented primary search field with secondary
-optional date and demo-traveler controls. Revamped result cards appear above
-recommendations and include a booking action. A separate `/bookings` page reads
-history, cancels by changing status while retaining the row, and offers a
-two-step delete control for user-created test bookings. Seed bookings cannot be
-deleted.
+The primary search accepts exactly one five-digit U.S. ZIP code. FastAPI first
+resolves the postcode and its Geoapify `place_id`, then requests
+`accommodation.hotel` places using the postcode boundary and a proximity bias.
+It defensively keeps only places whose returned postcode matches the request,
+deduplicates provider records by normalized hotel name, and calculates
+straight-line distance from the ZIP reference center. When that exact-boundary
+pass is empty, FastAPI searches live Geoapify Places circles at 5, 15, and 30
+miles, stopping at the first populated radius. Circle results are defensively
+distance-checked and identify whether their provider postcode matches the
+query. Unresolved ZIPs, valid searches with no hotels through 30 miles, missing
+configuration, and provider failures remain distinct outcomes. The former
+`/api/demo/zip-location` placeholder is removed.
 
-The search form also includes a compact **Clear selections** control. It resets
-the location, optional dates, visible search results, and transient booking
-feedback without deleting persisted booking-history records.
+The Vue search bar no longer calls the fictional SQLite catalog. It renders
+live hotel cards next to a Leaflet map using OpenStreetMap imagery and required
+attribution. Cards and markers share Geoapify `place_id` selection state, so
+selecting either identifies and reveals the same hotel in the other view.
+Provider text is rendered safely, and missing values receive honest unavailable
+labels. Expanded results identify the applied radius and label adjacent or
+missing provider postcodes. Distance text says **Nearby**, **Far**, or **Very
+far** and uses blue, orange, or red at the 5- and 15-mile thresholds. The page
+lists Geoapify Places as the live hotel source, Geoapify Geocoding as the ZIP
+source, and OpenStreetMap as the imagery source. Live results never infer
+prices, ratings, reviews, room availability, or booking status.
+
+Each live result also provides an **Open address in Google Maps** link in a new
+tab. The link uses Google's keyless Maps URL search format with the exact
+Geoapify-formatted address; if Geoapify omits the address, it uses the returned
+latitude and longitude instead. Google controls the final search match, so the
+link is navigation assistance rather than confirmation of hotel identity,
+availability, or booking status.
+
+The live search form includes a compact **Clear ZIP** control. A separate,
+explicitly fictional catalog remains below it so booking create/read/cancel/
+delete continues to be available through the frontend. Seed bookings remain
+protected from deletion.
 
 The account pages provide sign-in and account creation. Usernames are unique,
 passwords are stored as salted PBKDF2 hashes, and an email is optional but must
@@ -179,15 +216,20 @@ sign-in, but those guest searches are not persisted.
 `App.vue` owns the shared shell, URL-backed page navigation, and the short-lived
 demo session. `LoginPage.vue`, `RegisterPage.vue`, and `SearchHistoryPage.vue`
 own account and activity views. `SearchPage.vue` and `BookingHistoryPage.vue`
-own page state, `HotelSearchForm.vue` owns accessible form behavior,
-`HotelResultsTable.vue` owns result-card presentation, and `services/api.js`
-owns HTTP requests and response checks.
-`RecommendedStays.vue` presents three
-distinct, deterministic best-value stays below the search panel. The responsive
-visual design retains the navy/blue palette and uses orange only for the primary
-search action.
+own page state. `HotelSearchForm.vue` owns five-digit ZIP validation,
+`NearbyHotelList.vue` owns live result cards, `HotelMap.vue` owns Leaflet
+lifecycle and markers, and `services/api.js` owns HTTP requests and response
+checks. `RecommendedStays.vue` now presents the separate fictional booking
+sandbox. The responsive live-search treatment uses a distinct blue/cyan panel
+while retaining the established navy palette.
 
 ## Current product objective
+
+The live hotel-search milestone is implemented: a five-digit ZIP travels
+through FastAPI to Geoapify Geocoding and Places, and Vue presents factual
+hotels in a synchronized list and Leaflet map. The backend key remains in the
+ignored project-root `.env`; it is never copied into frontend configuration or
+returned to the browser. OpenStreetMap tiles require no client credential.
 
 The current interface milestone is implemented: the responsive application has
 location and optional fixed-date search, revamped stay cards above transparent
@@ -208,6 +250,8 @@ recent searches remains future work.
 
 | Interface idea | Data fit | Planned treatment |
 | --- | --- | --- |
+| Live ZIP hotel discovery | Supported by Geoapify postcode and Places responses | Implemented through FastAPI with exact filtering followed by live 5/15/30-mile fallback radii |
+| Connected list and map | Supported by returned place IDs and coordinates | Implemented with Leaflet and shared selection state |
 | Hotel or destination search | Supported by hotel name, city, and state | Implemented without implying live availability |
 | Check-in/check-out controls | Partially supported by fixed trip dates | Filter or select offered stays; do not imply arbitrary-date inventory |
 | Price comparison | Supported by nightly rate, dates, and derived stay total | Implemented with nightly and estimated total prices |
@@ -267,6 +311,8 @@ No frontend lint or test script is currently configured. Follow
 - Backend documentation: `http://127.0.0.1:8000/docs`
 - Example location search:
   `http://127.0.0.1:8000/api/hotels/search?name=Boston`
+- Live ZIP hotel search:
+  `http://127.0.0.1:8000/api/hotels/nearby?postcode=10036&limit=20`
 - Recommended stays:
   `http://127.0.0.1:8000/api/hotels/recommended?limit=3`
 - Demo users: `http://127.0.0.1:8000/api/users`
@@ -280,6 +326,9 @@ Official Prompts 01–04 cover setup, project-local environments, the Part 1 CSV
 API, and the initial Vue integration. Prompt 05 records that the project
 interpreter is ready for SQLite without installation. SQLite schema creation,
 one-time CSV seeding, date filtering, and booking CRUD are now implemented.
+The main browser search no longer queries fictional CSV/SQLite hotel names,
+cities, or states. The legacy catalog endpoint remains available for the
+separate simulated booking exercise and regression coverage.
 Production-grade authentication, dynamic pricing, payments, flights, taxes,
 live availability, and personalized hotel recommendations based on prior
 searches remain future work. Demo authentication and per-user search history
