@@ -10,7 +10,12 @@ from pathlib import Path
 from ..models import (
     AuthUserResponse,
     BookingResponse,
+    DemoHotelNightResponse,
     HotelStayResponse,
+    PostcodeCenterResponse,
+    SavedHotelCreateRequest,
+    SavedHotelResponse,
+    SavedHotelSearchResponse,
     SearchHistoryResponse,
     UserResponse,
 )
@@ -20,6 +25,7 @@ from .seed import DATA_DIRECTORY, SeedDataError, load_seed_data
 
 DATABASE_PATH = Path(__file__).resolve().parents[2] / "data" / "expedia_mini.db"
 SEED_VERSION = "1"
+DEMO_NIGHT_DATES = tuple(date(2026, 10, day) for day in range(10, 15))
 
 
 class DataAccessError(RuntimeError):
@@ -40,6 +46,10 @@ class AccountConflictError(ValueError):
 
 class AuthenticationError(LookupError):
     """Raised when credentials do not match a stored account."""
+
+
+class SavedHotelNotFoundError(LookupError):
+    """Raised when a requested provider hotel is not saved locally."""
 
 
 SCHEMA = """
@@ -83,9 +93,67 @@ CREATE TABLE IF NOT EXISTS bookings (
     is_seeded INTEGER NOT NULL DEFAULT 0 CHECK (is_seeded IN (0, 1))
 );
 
+-- NearbyHotelResponse mapping: place_id -> hotel_id,
+-- formatted_address -> address, and the remaining names map directly.
+CREATE TABLE IF NOT EXISTS saved_hotels (
+    hotel_id TEXT PRIMARY KEY NOT NULL,
+    name TEXT,
+    address TEXT,
+    latitude REAL NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+    longitude REAL NOT NULL CHECK (longitude BETWEEN -180 AND 180)
+);
+
+CREATE TABLE IF NOT EXISTS demo_hotel_nights (
+    hotel_id TEXT NOT NULL REFERENCES saved_hotels(hotel_id),
+    stay_date TEXT NOT NULL CHECK (
+        length(stay_date) = 10
+        AND stay_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+        AND date(stay_date) = stay_date
+    ),
+    nightly_rate_cents INTEGER NOT NULL DEFAULT 10000 CHECK (
+        typeof(nightly_rate_cents) = 'integer' AND nightly_rate_cents >= 0
+    ),
+    rooms_available INTEGER NOT NULL DEFAULT 20 CHECK (
+        typeof(rooms_available) = 'integer' AND rooms_available >= 0
+    ),
+    PRIMARY KEY (hotel_id, stay_date)
+);
+
+CREATE TABLE IF NOT EXISTS saved_hotel_locations (
+    hotel_id TEXT NOT NULL REFERENCES saved_hotels(hotel_id),
+    searched_postcode TEXT NOT NULL CHECK (
+        length(searched_postcode) = 5
+        AND searched_postcode NOT GLOB '*[^0-9]*'
+    ),
+    center_locality TEXT,
+    center_state TEXT,
+    center_latitude REAL NOT NULL CHECK (center_latitude BETWEEN -90 AND 90),
+    center_longitude REAL NOT NULL CHECK (center_longitude BETWEEN -180 AND 180),
+    search_scope TEXT NOT NULL CHECK (
+        search_scope IN ('postcode boundary', 'expanded radius')
+    ),
+    search_radius_miles INTEGER CHECK (search_radius_miles >= 1),
+    hotel_city TEXT,
+    hotel_state TEXT,
+    hotel_postcode TEXT,
+    distance_meters INTEGER NOT NULL CHECK (distance_meters >= 0),
+    distance_miles REAL NOT NULL CHECK (distance_miles >= 0),
+    inside_searched_postcode INTEGER CHECK (
+        inside_searched_postcode IS NULL OR inside_searched_postcode IN (0, 1)
+    ),
+    PRIMARY KEY (hotel_id, searched_postcode),
+    CHECK (
+        (search_scope = 'postcode boundary' AND search_radius_miles IS NULL)
+        OR
+        (search_scope = 'expanded radius' AND search_radius_miles IS NOT NULL)
+    )
+);
+
 CREATE INDEX IF NOT EXISTS idx_trips_hotel_id ON trips(hotel_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_trip_id ON bookings(trip_id);
+CREATE INDEX IF NOT EXISTS idx_saved_hotel_locations_postcode
+    ON saved_hotel_locations(searched_postcode, distance_meters, hotel_id);
 CREATE TABLE IF NOT EXISTS search_history (
     search_id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -273,6 +341,247 @@ def initialize_database(
     finally:
         connection.close()
     return database_path
+
+
+def _saved_hotel_response(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+) -> SavedHotelResponse:
+    night_rows = connection.execute(
+        """
+        SELECT stay_date, nightly_rate_cents, rooms_available
+        FROM demo_hotel_nights
+        WHERE hotel_id = ?
+        ORDER BY stay_date
+        """,
+        (row["hotel_id"],),
+    ).fetchall()
+    return SavedHotelResponse(
+        place_id=row["hotel_id"],
+        name=row["name"],
+        formatted_address=row["address"],
+        city=row["hotel_city"],
+        state=row["hotel_state"],
+        postcode=row["hotel_postcode"],
+        latitude=row["latitude"],
+        longitude=row["longitude"],
+        distance_meters=row["distance_meters"],
+        distance_miles=row["distance_miles"],
+        inside_searched_postcode=(
+            None
+            if row["inside_searched_postcode"] is None
+            else bool(row["inside_searched_postcode"])
+        ),
+        demo_nights=[
+            DemoHotelNightResponse(
+                stay_date=date.fromisoformat(night["stay_date"]),
+                nightly_rate_cents=night["nightly_rate_cents"],
+                rooms_available=night["rooms_available"],
+            )
+            for night in night_rows
+        ],
+    )
+
+
+SAVED_HOTEL_SELECT = """
+SELECT
+    sh.hotel_id,
+    sh.name,
+    sh.address,
+    sh.latitude,
+    sh.longitude,
+    sl.center_locality,
+    sl.center_state,
+    sl.center_latitude,
+    sl.center_longitude,
+    sl.search_scope,
+    sl.search_radius_miles,
+    sl.hotel_city,
+    sl.hotel_state,
+    sl.hotel_postcode,
+    sl.distance_meters,
+    sl.distance_miles,
+    sl.inside_searched_postcode
+FROM saved_hotel_locations AS sl
+JOIN saved_hotels AS sh ON sh.hotel_id = sl.hotel_id
+WHERE sl.searched_postcode = ?
+ORDER BY sl.distance_meters, sh.hotel_id
+"""
+
+
+def _list_saved_hotels(
+    connection: sqlite3.Connection,
+    postcode: str,
+) -> SavedHotelSearchResponse:
+    rows = connection.execute(SAVED_HOTEL_SELECT, (postcode,)).fetchall()
+    saved_hotel_ids = [
+        row["hotel_id"]
+        for row in connection.execute(
+            "SELECT hotel_id FROM saved_hotels ORDER BY hotel_id"
+        )
+    ]
+    if not rows:
+        return SavedHotelSearchResponse(
+            query=postcode,
+            count=0,
+            results=[],
+            saved_hotel_ids=saved_hotel_ids,
+        )
+
+    first = rows[0]
+    center = PostcodeCenterResponse(
+        postcode=postcode,
+        country_code="us",
+        latitude=first["center_latitude"],
+        longitude=first["center_longitude"],
+        locality=first["center_locality"],
+        state=first["center_state"],
+    )
+    return SavedHotelSearchResponse(
+        query=postcode,
+        count=len(rows),
+        search_scope=first["search_scope"],
+        search_radius_miles=first["search_radius_miles"],
+        center=center,
+        results=[_saved_hotel_response(connection, row) for row in rows],
+        saved_hotel_ids=saved_hotel_ids,
+    )
+
+
+def list_saved_hotels(
+    postcode: str,
+    database_path: Path = DATABASE_PATH,
+) -> SavedHotelSearchResponse:
+    """Return saved provider hotels associated with an exact searched ZIP."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        return _list_saved_hotels(connection, postcode)
+    except sqlite3.Error as exc:
+        raise DataAccessError("Saved hotels could not be read.") from exc
+    finally:
+        connection.close()
+
+
+def save_api_hotel(
+    payload: SavedHotelCreateRequest,
+    database_path: Path = DATABASE_PATH,
+) -> SavedHotelResponse:
+    """Idempotently save one provider hotel, ZIP context, and demo nights."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    hotel = payload.hotel
+    try:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO saved_hotels (
+                    hotel_id, name, address, latitude, longitude
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    hotel.place_id,
+                    hotel.name,
+                    hotel.formatted_address,
+                    hotel.latitude,
+                    hotel.longitude,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO saved_hotel_locations (
+                    hotel_id, searched_postcode, center_locality, center_state,
+                    center_latitude, center_longitude, search_scope,
+                    search_radius_miles, hotel_city, hotel_state,
+                    hotel_postcode, distance_meters, distance_miles,
+                    inside_searched_postcode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    hotel.place_id,
+                    payload.postcode,
+                    payload.center.locality,
+                    payload.center.state,
+                    payload.center.latitude,
+                    payload.center.longitude,
+                    payload.search_scope,
+                    payload.search_radius_miles,
+                    hotel.city,
+                    hotel.state,
+                    hotel.postcode,
+                    hotel.distance_meters,
+                    hotel.distance_miles,
+                    (
+                        None
+                        if hotel.inside_searched_postcode is None
+                        else int(hotel.inside_searched_postcode)
+                    ),
+                ),
+            )
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO demo_hotel_nights (hotel_id, stay_date)
+                VALUES (?, ?)
+                """,
+                [
+                    (hotel.place_id, stay_date.isoformat())
+                    for stay_date in DEMO_NIGHT_DATES
+                ],
+            )
+            saved_search = _list_saved_hotels(connection, payload.postcode)
+            saved_hotel = next(
+                (
+                    result
+                    for result in saved_search.results
+                    if result.place_id == hotel.place_id
+                ),
+                None,
+            )
+            if saved_hotel is None:
+                raise DataAccessError("The saved hotel could not be read after saving.")
+            return saved_hotel
+    except DataAccessError:
+        raise
+    except sqlite3.Error as exc:
+        raise DataAccessError("The hotel could not be saved locally.") from exc
+    finally:
+        connection.close()
+
+
+def delete_saved_hotel(
+    hotel_id: str,
+    database_path: Path = DATABASE_PATH,
+) -> None:
+    """Delete one saved hotel and all dependent local demo data atomically."""
+
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            exists = connection.execute(
+                "SELECT 1 FROM saved_hotels WHERE hotel_id = ?", (hotel_id,)
+            ).fetchone()
+            if exists is None:
+                raise SavedHotelNotFoundError("Saved hotel was not found.")
+            connection.execute(
+                "DELETE FROM demo_hotel_nights WHERE hotel_id = ?", (hotel_id,)
+            )
+            connection.execute(
+                "DELETE FROM saved_hotel_locations WHERE hotel_id = ?", (hotel_id,)
+            )
+            connection.execute(
+                "DELETE FROM saved_hotels WHERE hotel_id = ?", (hotel_id,)
+            )
+    except SavedHotelNotFoundError:
+        raise
+    except sqlite3.Error as exc:
+        raise DataAccessError("The saved hotel could not be removed.") from exc
+    finally:
+        connection.close()
 
 
 STAY_SELECT = """

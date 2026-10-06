@@ -35,13 +35,17 @@ from .controllers.database import (
     BookingConflictError,
     BookingNotFoundError,
     DataAccessError,
+    SavedHotelNotFoundError,
     cancel_booking as cancel_booking_record,
     create_booking as create_booking_record,
+    delete_saved_hotel as delete_saved_hotel_record,
     delete_booking as delete_booking_record,
     list_bookings as list_booking_records,
     list_search_history as list_search_history_records,
+    list_saved_hotels as list_saved_hotel_records,
     list_users as list_user_records,
     record_search,
+    save_api_hotel as save_api_hotel_record,
 )
 from .controllers.seed import SeedDataError
 from .models import (
@@ -53,6 +57,9 @@ from .models import (
     LoginRequest,
     NearbyHotelSearchResponse,
     RegisterRequest,
+    SavedHotelCreateRequest,
+    SavedHotelResponse,
+    SavedHotelSearchResponse,
     SearchHistoryResponse,
     UserResponse,
 )
@@ -216,6 +223,72 @@ async def nearby_hotels(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Search history could not be saved.",
         ) from exc
+
+
+@router.get(
+    "/saved-hotels",
+    response_model=SavedHotelSearchResponse,
+    tags=["hotels"],
+)
+async def saved_hotels(
+    postcode: Annotated[str, Query(min_length=5, max_length=5)],
+) -> SavedHotelSearchResponse:
+    """Return locally saved provider hotels associated with one ZIP."""
+
+    requested_postcode = postcode.strip()
+    if not re.fullmatch(r"\d{5}", requested_postcode):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Enter a valid 5-digit U.S. ZIP code.",
+        )
+    try:
+        return list_saved_hotel_records(requested_postcode)
+    except (DataAccessError, SeedDataError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Local hotel storage is unavailable.",
+        ) from exc
+
+
+@router.post(
+    "/saved-hotels",
+    response_model=SavedHotelResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["hotels"],
+)
+async def save_hotel(payload: SavedHotelCreateRequest) -> SavedHotelResponse:
+    """Save a provider hotel with its searched ZIP context and demo nights."""
+
+    try:
+        return save_api_hotel_record(payload)
+    except (DataAccessError, SeedDataError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The hotel could not be saved locally.",
+        ) from exc
+
+
+@router.delete(
+    "/saved-hotels/{hotel_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["hotels"],
+)
+async def remove_saved_hotel(hotel_id: str) -> Response:
+    """Delete one saved provider hotel and all of its local demo data."""
+
+    try:
+        delete_saved_hotel_record(hotel_id)
+    except SavedHotelNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (DataAccessError, SeedDataError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The saved hotel could not be removed.",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

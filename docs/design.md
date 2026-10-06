@@ -163,6 +163,30 @@ removed. No package installation is needed.
 idempotent seed marker, transactions, joined reads, collision-free booking IDs,
 and CRUD functions. All application reads and writes use SQLite after seeding.
 
+An additive, repeatable schema migration creates `saved_hotels` and
+`demo_hotel_nights` before the seed-marker check, so it applies to both existing
+and fresh databases without reseeding or changing Assignment 1 records. The
+live response mapping is `place_id` to `saved_hotels.hotel_id`,
+`formatted_address` to `address`, and `name`, `latitude`, and `longitude` to
+columns with the same names. Provider IDs use SQLite's default case-sensitive
+text comparison and form the non-null primary key. Coordinates have database
+range checks. Each fictional nightly row is keyed by `(hotel_id, stay_date)`,
+references a saved provider hotel, and defaults to 10,000 cents and 20 rooms.
+These defaults are classroom simulation data and are not supplied by Geoapify.
+`saved_hotel_locations` keeps a separate provider-hotel/ZIP association plus
+the stored ZIP center, provider locality/postcode, distance, and search scope.
+The save controller uses insert-if-missing operations for the hotel,
+association, and five October 10–14 demo nights, so retries neither duplicate
+rows nor overwrite edited rates or availability. Removal explicitly deletes
+the hotel's nights, associations, and provider record in one transaction.
+
+The Vue orchestration is local-first: `GET /api/saved-hotels` must succeed
+before the unchanged live endpoint can be called. Saved matches are adapted to
+the existing `place_id`-based list and map contract, preserving card/marker
+selection. An empty local result falls through to Geoapify; a local-storage
+failure is shown to the user and blocks that fallback. Provider IDs returned
+alongside a local lookup restore Add/Remove state after a page refresh.
+
 ## Implemented MVC and CRUD responsibilities
 
 The supplied MVC references map to this client/server application as follows:

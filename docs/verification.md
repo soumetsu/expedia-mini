@@ -20,7 +20,7 @@ The backend environment is installed under `backend/.venv/`. Run its tests from
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The backend suite contains 47 tests. In addition to the SQLite, catalog,
+The backend suite contains 54 tests. In addition to the SQLite, catalog,
 booking, authentication, and search-history coverage, mocked Geoapify tests
 verify exact U.S. ZIP resolution, postcode boundary and hotel-category request
 parameters, exact returned-postcode filtering, 5/15/30-mile circle fallback,
@@ -114,6 +114,28 @@ check.
 17. Confirm a clean browser run has no warning or error console entries, and
     inspect both service logs for unexpected errors.
 
+## Assignment 2 local-storage smoke test
+
+Use a ZIP that currently returns API results, then verify the save lifecycle:
+
+1. Confirm the result panel says **API results** and exposes **Add to Local**.
+2. Add one hotel. Confirm the button changes only after success, removal becomes
+   available, and the other list/map selection controls still identify the same
+   provider ID.
+3. Refresh the page and search the same ZIP. Confirm the result panel says
+   **Saved locally**, explicitly describes the results as a saved subset, and
+   shows October 10–14, 2026 at $100.00/night with 20 rooms under **Simulated
+   classroom data**.
+4. In DB Browser, inspect `saved_hotels`, `saved_hotel_locations`, and
+   `demo_hotel_nights`. Confirm one exact provider ID, one ZIP association, and
+   five hotel/date rows. Confirm `(hotel_id, stay_date)` is the nightly primary
+   key and the nightly foreign key references `saved_hotels`.
+5. Remove the saved hotel in Vue. Confirm the interface changes only after the
+   request succeeds, the live API fallback returns when the ZIP has no remaining
+   saved hotels, and only that hotel's three-table graph was deleted.
+6. Confirm the Assignment 1 counts and records are unchanged and the browser
+   console has no warning or error entries.
+
 Earlier Part 1 browser evidence remains under `docs/screenshots/part1/`:
 
 - `hotel-search-success.png`
@@ -167,6 +189,16 @@ verify the database path and schema, one-time CSV seeding without duplication
 or reset, all-four-table counts and references, SQLite-backed catalog reads,
 CRUD behavior, seed protection, and retention/removal semantics.
 Runtime database files must remain excluded from Git.
+
+Assignment 2 schema verification also checks that `saved_hotels.hotel_id` is a
+non-null provider-ID primary key; nullable provider text and coordinate bounds
+are preserved; `demo_hotel_nights` has its hotel/date composite primary key,
+foreign key, ISO date constraint, and fictional 10,000-cent/20-room defaults;
+and rerunning initialization adds these tables without reseeding existing data.
+Mutation coverage uses temporary databases to verify idempotent saves, five
+October 10–14 default night rows, preservation of edited rates/availability,
+ZIP-specific associations, provider-ID saved status, and transactional removal
+that preserves unrelated hotels.
 
 For a freshly initialized test database, verify these seed counts:
 

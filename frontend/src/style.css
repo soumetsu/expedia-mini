@@ -562,6 +562,23 @@ h1 {
   font-weight: 800;
 }
 
+.hotel-card-source-badge {
+  width: fit-content;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: #e5f4eb;
+  color: #24643d;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hotel-card-source-badge--api {
+  background: #e6f3f8;
+  color: #245c78;
+}
+
 .hotel-card-address {
   color: #556d7b;
   font-size: 0.86rem;
@@ -620,9 +637,9 @@ h1 {
 .hotel-card-google-link {
   display: inline-flex;
   align-items: center;
-  justify-self: end;
+  justify-self: auto;
   gap: 0.35rem;
-  margin: 0 1rem 1rem;
+  margin: 0;
   padding: 0.48rem 0.7rem;
   border: 1px solid #7cb3d0;
   border-radius: 999px;
@@ -642,6 +659,80 @@ h1 {
 .hotel-card-google-link:focus-visible {
   outline: 3px solid #4aa9d1;
   outline-offset: 2px;
+}
+
+.hotel-card-demo-nights {
+  margin: 0 1rem 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid #e5c98f;
+  border-radius: 0.7rem;
+  background: #fff9e9;
+  color: #65450d;
+  font-size: 0.74rem;
+}
+
+.hotel-card-demo-nights > strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  letter-spacing: 0.02em;
+}
+
+.hotel-card-demo-nights ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hotel-card-demo-nights li {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr 1fr;
+  gap: 0.5rem;
+}
+
+.hotel-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0 1rem 1rem;
+}
+
+.hotel-card-local-action {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #17638e;
+  border-radius: 999px;
+  background: #17638e;
+  color: #ffffff;
+  font-size: 0.76rem;
+}
+
+.hotel-card-local-action:hover:not(:disabled) {
+  background: #104b6d;
+}
+
+.hotel-card-local-action--remove {
+  border-color: #a33b31;
+  background: #ffffff;
+  color: #8a1c14;
+}
+
+.hotel-card-local-action--remove:hover:not(:disabled) {
+  background: #fff0ee;
+}
+
+.local-hotel-feedback {
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #c5d8e2;
+  border-radius: 0.75rem;
+  background: #f5fafc;
+}
+
+.local-hotel-feedback p {
+  margin: 0;
 }
 
 .hotel-map-shell {
@@ -1609,6 +1700,15 @@ tbody tr:last-child td {
     display: none;
   }
 
+  .hotel-card-demo-nights li {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+
+  .hotel-card-actions {
+    justify-content: flex-start;
+  }
+
   .result-price-action {
     padding-top: 0.9rem;
     padding-left: 0;
@@ -1660,7 +1760,8 @@ tbody tr:last-child td {
   .secondary-action,
   .recommendation-card,
   .nearby-hotel-card,
-  .hotel-card-google-link {
+  .hotel-card-google-link,
+  .hotel-card-local-action {
     transition:
       transform 160ms ease,
       box-shadow 160ms ease,

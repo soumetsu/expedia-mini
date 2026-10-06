@@ -91,6 +91,17 @@ restore deleted rows or duplicate seeds. The generated database remains
 excluded from Git. See
 `prompts/05-sqlite-persistence-preflight.md` for the original decision gate.
 
+The schema also includes an additive Assignment 2 storage foundation for live
+API hotels. `saved_hotels.hotel_id` stores the provider's `place_id` exactly as
+a primary key; API `name`, `formatted_address`, `latitude`, and `longitude` map
+to `name`, `address`, `latitude`, and `longitude`. `demo_hotel_nights` uses
+`(hotel_id, stay_date)` as its primary key and references `saved_hotels`.
+Its default $100.00 nightly rate and 20-room count are explicitly fictional
+classroom values, not Geoapify data. `saved_hotel_locations` separately records
+the searched ZIP, ZIP center, provider locality/postcode, distance, and search
+scope needed to reconstruct the existing list and map without changing the
+provider response contract.
+
 ## Run the backend
 
 From the project root:
@@ -145,6 +156,9 @@ relationships, seeds SQLite from all four CSV files, and provides:
 
 - `GET /api/health`
 - `GET /api/hotels/nearby?postcode=<ZIP>&limit=<1–50>`
+- `GET /api/saved-hotels?postcode=<ZIP>`
+- `POST /api/saved-hotels`
+- `DELETE /api/saved-hotels/{provider hotel ID}`
 - `GET /api/hotels/search?name=<city, state, or hotel name>&check_in=<date>&check_out=<date>`
 - `GET /api/hotels/recommended?limit=<1–6>`
 - `POST /api/auth/register`
@@ -187,6 +201,23 @@ far** and uses blue, orange, or red at the 5- and 15-mile thresholds. The page
 lists Geoapify Places as the live hotel source, Geoapify Geocoding as the ZIP
 source, and OpenStreetMap as the imagery source. Live results never infer
 prices, ratings, reviews, room availability, or booking status.
+
+ZIP lookup is local-first. Vue first requests saved provider hotels associated
+with the entered ZIP. When that read succeeds with saved matches, it shows only
+that explicitly labeled local subset using the stored ZIP center and result
+context; it never describes the subset as a complete area inventory. Each
+local card shows the October 10–14, 2026 simulated nightly rows. Only a
+successful empty local response triggers the unchanged live
+`/api/hotels/nearby` request. A local-storage error stops the search instead of
+silently falling through to the provider.
+
+Live API cards expose **Add to Local**. A successful save inserts the provider
+hotel once, adds its ZIP association, and inserts missing demo-night rows with
+the fictional $100.00 and 20-room defaults. Repeated saves do not overwrite
+nightly edits. Saved cards expose **Remove from Local**, which transactionally
+deletes that provider hotel, all of its ZIP associations, and its demo nights
+without affecting other hotels or the Assignment 1 tables. Saved status is
+loaded from SQLite by provider ID after each search, including after refresh.
 
 Each live result also provides an **Open address in Google Maps** link in a new
 tab. The link uses Google's keyless Maps URL search format with the exact

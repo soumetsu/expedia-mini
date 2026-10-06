@@ -4,9 +4,21 @@ const props = defineProps({
   postcode: { type: String, required: true },
   showPostcodeRelation: { type: Boolean, default: false },
   selectedPlaceId: { type: String, default: '' },
+  resultSource: { type: String, required: true },
+  pendingPlaceId: { type: String, default: '' },
 })
 
-defineEmits(['select'])
+defineEmits(['add', 'remove', 'select'])
+
+const usdFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+})
+const demoDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
 
 function formatDistance(distanceMiles) {
   if (distanceMiles < 0.05) return 'Less than 0.1 mi'
@@ -46,6 +58,14 @@ function googleMapsLabel(hotel) {
     ? 'Open address in Google Maps'
     : 'Open coordinates in Google Maps'
 }
+
+function formatDemoDate(stayDate) {
+  return demoDateFormatter.format(new Date(`${stayDate}T00:00:00`))
+}
+
+function formatDemoRate(cents) {
+  return usdFormatter.format(cents / 100)
+}
 </script>
 
 <template>
@@ -65,6 +85,14 @@ function googleMapsLabel(hotel) {
           <span class="hotel-result-number" aria-hidden="true">{{ index + 1 }}</span>
           <span class="hotel-card-copy">
             <span class="hotel-card-heading">{{ hotel.name || 'Name unavailable' }}</span>
+            <span
+              class="hotel-card-source-badge"
+              :class="{
+                'hotel-card-source-badge--api': resultSource !== 'local',
+              }"
+            >
+              {{ resultSource === 'local' ? 'Saved locally' : 'API result' }}
+            </span>
             <span v-if="hotel.formatted_address" class="hotel-card-address">
               {{ hotel.formatted_address }}
             </span>
@@ -91,16 +119,49 @@ function googleMapsLabel(hotel) {
           </span>
           <span class="hotel-card-map-cue">Show on map</span>
         </button>
-        <a
-          class="hotel-card-google-link"
-          :href="googleMapsUrl(hotel)"
-          target="_blank"
-          rel="noopener noreferrer"
-          :aria-label="`${googleMapsLabel(hotel)} for ${hotel.name || 'this hotel'} (opens in a new tab)`"
-        >
-          {{ googleMapsLabel(hotel) }}
-          <span aria-hidden="true">↗</span>
-        </a>
+        <div v-if="hotel.demo_nights?.length" class="hotel-card-demo-nights">
+          <strong>Simulated classroom data</strong>
+          <ul>
+            <li v-for="night in hotel.demo_nights" :key="night.stay_date">
+              <span>{{ formatDemoDate(night.stay_date) }}</span>
+              <span>{{ formatDemoRate(night.nightly_rate_cents) }}/night</span>
+              <span>{{ night.rooms_available }} rooms available</span>
+            </li>
+          </ul>
+        </div>
+        <div class="hotel-card-actions">
+          <a
+            class="hotel-card-google-link"
+            :href="googleMapsUrl(hotel)"
+            target="_blank"
+            rel="noopener noreferrer"
+            :aria-label="`${googleMapsLabel(hotel)} for ${hotel.name || 'this hotel'} (opens in a new tab)`"
+          >
+            {{ googleMapsLabel(hotel) }}
+            <span aria-hidden="true">↗</span>
+          </a>
+          <button
+            class="hotel-card-local-action"
+            type="button"
+            :disabled="hotel.saved_locally || pendingPlaceId === hotel.place_id"
+            @click="$emit('add', hotel)"
+          >
+            <template v-if="pendingPlaceId === hotel.place_id && !hotel.saved_locally">
+              Saving…
+            </template>
+            <template v-else-if="hotel.saved_locally">Saved locally</template>
+            <template v-else>Add to Local</template>
+          </button>
+          <button
+            v-if="hotel.saved_locally"
+            class="hotel-card-local-action hotel-card-local-action--remove"
+            type="button"
+            :disabled="pendingPlaceId === hotel.place_id"
+            @click="$emit('remove', hotel)"
+          >
+            {{ pendingPlaceId === hotel.place_id ? 'Removing…' : 'Remove from Local' }}
+          </button>
+        </div>
       </article>
     </li>
   </ol>

@@ -8,6 +8,9 @@ import RecommendedStays from '../components/RecommendedStays.vue'
 import {
   createBooking,
   getRecommendedHotels,
+  getSavedHotels,
+  removeSavedHotel,
+  saveHotelLocally,
   searchNearbyHotels,
 } from '../services/api.js'
 
@@ -28,9 +31,14 @@ const searchScope = ref('')
 const searchRadiusMiles = ref(null)
 const hotelSource = ref('')
 const postcodeSource = ref('')
+const resultSource = ref('')
+const savedHotelIds = ref(new Set())
 const hasSearched = ref(false)
 const errorMessage = ref('')
 const selectedPlaceId = ref('')
+const localActionPlaceId = ref('')
+const localActionMessage = ref('')
+const localActionError = ref('')
 const recommendations = ref([])
 const recommendationsLoading = ref(true)
 const recommendationsError = ref('')
@@ -42,11 +50,57 @@ const noResults = computed(
   () => hasSearched.value && !loading.value && !errorMessage.value && resultCount.value === 0,
 )
 const expandedSearch = computed(() => searchScope.value === 'expanded radius')
+const showingLocalResults = computed(() => resultSource.value === 'local')
+const resultSourceLabel = computed(() => {
+  if (showingLocalResults.value) return 'Saved locally'
+  if (resultSource.value === 'api') return 'API results'
+  return 'Checking saved hotels'
+})
 
 const resolvedLocation = computed(() => {
   if (!searchCenter.value) return ''
   return [searchCenter.value.locality, searchCenter.value.state].filter(Boolean).join(', ')
 })
+
+function applySearchResponse(response, source) {
+  resultSource.value = source
+  if (source === 'local') {
+    results.value = response.results
+    hotelSource.value = 'Saved locally'
+    postcodeSource.value = 'Stored ZIP search context'
+  } else {
+    results.value = response.results.map((hotel) => ({
+      ...hotel,
+      saved_locally: savedHotelIds.value.has(hotel.place_id),
+      demo_nights: [],
+    }))
+    hotelSource.value = response.hotel_source
+    postcodeSource.value = response.postcode_source
+  }
+  resultCount.value = response.count
+  searchCenter.value = response.center
+  searchScope.value = response.search_scope || ''
+  searchRadiusMiles.value = response.search_radius_miles
+  selectedPlaceId.value = response.results[0]?.place_id || ''
+}
+
+async function loadPostcodeResults(requestedPostcode) {
+  let localResponse
+  try {
+    localResponse = await getSavedHotels(requestedPostcode)
+  } catch (error) {
+    throw new Error(error.message || 'Saved hotels could not be checked. Live search was not run.')
+  }
+
+  savedHotelIds.value = new Set(localResponse.saved_hotel_ids)
+  if (localResponse.count > 0) {
+    applySearchResponse(localResponse, 'local')
+    return
+  }
+
+  const liveResponse = await searchNearbyHotels(requestedPostcode, props.authToken)
+  applySearchResponse(liveResponse, 'api')
+}
 
 async function handleSearch({ postcode: requestedPostcode }) {
   postcode.value = requestedPostcode
@@ -54,6 +108,8 @@ async function handleSearch({ postcode: requestedPostcode }) {
   loading.value = true
   hasSearched.value = false
   errorMessage.value = ''
+  localActionMessage.value = ''
+  localActionError.value = ''
   results.value = []
   resultCount.value = 0
   searchCenter.value = null
@@ -61,18 +117,11 @@ async function handleSearch({ postcode: requestedPostcode }) {
   searchRadiusMiles.value = null
   hotelSource.value = ''
   postcodeSource.value = ''
+  resultSource.value = ''
   selectedPlaceId.value = ''
 
   try {
-    const response = await searchNearbyHotels(requestedPostcode, props.authToken)
-    results.value = response.results
-    resultCount.value = response.count
-    searchCenter.value = response.center
-    searchScope.value = response.search_scope
-    searchRadiusMiles.value = response.search_radius_miles
-    hotelSource.value = response.hotel_source
-    postcodeSource.value = response.postcode_source
-    selectedPlaceId.value = response.results[0]?.place_id || ''
+    await loadPostcodeResults(requestedPostcode)
     hasSearched.value = true
   } catch (error) {
     hasSearched.value = true
@@ -91,9 +140,14 @@ function handleClear() {
   searchRadiusMiles.value = null
   hotelSource.value = ''
   postcodeSource.value = ''
+  resultSource.value = ''
+  savedHotelIds.value = new Set()
   hasSearched.value = false
   errorMessage.value = ''
   selectedPlaceId.value = ''
+  localActionPlaceId.value = ''
+  localActionMessage.value = ''
+  localActionError.value = ''
 }
 
 function selectHotel(placeId) {
@@ -108,6 +162,89 @@ async function selectHotelFromMap(placeId) {
   const card = document.getElementById(`nearby-hotel-${index}`)
   card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   card?.focus({ preventScroll: true })
+}
+
+function hotelRequestFields(hotel) {
+  return {
+    place_id: hotel.place_id,
+    name: hotel.name,
+    formatted_address: hotel.formatted_address,
+    city: hotel.city,
+    state: hotel.state,
+    postcode: hotel.postcode,
+    latitude: hotel.latitude,
+    longitude: hotel.longitude,
+    distance_meters: hotel.distance_meters,
+    distance_miles: hotel.distance_miles,
+    inside_searched_postcode: hotel.inside_searched_postcode,
+  }
+}
+
+async function handleAddToLocal(hotel) {
+  if (!searchCenter.value || hotel.saved_locally) return
+  localActionPlaceId.value = hotel.place_id
+  localActionMessage.value = ''
+  localActionError.value = ''
+  try {
+    const saved = await saveHotelLocally({
+      postcode: searchedPostcode.value,
+      center: searchCenter.value,
+      search_scope: searchScope.value,
+      search_radius_miles: searchRadiusMiles.value,
+      hotel: hotelRequestFields(hotel),
+    })
+    savedHotelIds.value = new Set([...savedHotelIds.value, hotel.place_id])
+    results.value = results.value.map((result) =>
+      result.place_id === hotel.place_id
+        ? { ...result, saved_locally: true, demo_nights: saved.demo_nights }
+        : result,
+    )
+    localActionMessage.value = `${hotel.name || 'This hotel'} was saved locally.`
+  } catch (error) {
+    localActionError.value = error.message || 'The hotel could not be saved locally.'
+  } finally {
+    localActionPlaceId.value = ''
+  }
+}
+
+async function handleRemoveFromLocal(hotel) {
+  if (!hotel.saved_locally) return
+  localActionPlaceId.value = hotel.place_id
+  localActionMessage.value = ''
+  localActionError.value = ''
+  try {
+    await removeSavedHotel(hotel.place_id)
+    savedHotelIds.value = new Set(
+      [...savedHotelIds.value].filter((placeId) => placeId !== hotel.place_id),
+    )
+    if (showingLocalResults.value) {
+      results.value = results.value.filter((result) => result.place_id !== hotel.place_id)
+      resultCount.value = results.value.length
+      selectedPlaceId.value = results.value[0]?.place_id || ''
+      if (results.value.length === 0) {
+        loading.value = true
+        errorMessage.value = ''
+        try {
+          await loadPostcodeResults(searchedPostcode.value)
+        } catch (error) {
+          errorMessage.value = error.message || 'Hotels could not be reloaded.'
+        } finally {
+          loading.value = false
+        }
+      }
+    } else {
+      results.value = results.value.map((result) =>
+        result.place_id === hotel.place_id
+          ? { ...result, saved_locally: false, demo_nights: [] }
+          : result,
+      )
+    }
+    localActionMessage.value = `${hotel.name || 'This hotel'} was removed from local storage.`
+  } catch (error) {
+    localActionError.value = error.message || 'The saved hotel could not be removed.'
+  } finally {
+    localActionPlaceId.value = ''
+  }
 }
 
 async function handleBook(stay) {
@@ -188,9 +325,14 @@ onMounted(loadRecommendations)
       >
         <div class="section-heading section-heading--results">
           <div>
-            <p class="eyebrow">Live provider results</p>
+            <p class="eyebrow">{{ resultSourceLabel }}</p>
             <h2 id="search-results-title">
-              {{ expandedSearch ? 'Hotels near' : 'Hotels inside' }} ZIP {{ searchedPostcode }}
+              <template v-if="showingLocalResults">Saved hotels for ZIP</template>
+              <template v-else-if="resultSource === 'api'">
+                {{ expandedSearch ? 'Hotels near' : 'Hotels inside' }} ZIP
+              </template>
+              <template v-else>Checking ZIP</template>
+              {{ searchedPostcode }}
             </h2>
           </div>
           <p v-if="resolvedLocation" class="section-intro">
@@ -199,8 +341,11 @@ onMounted(loadRecommendations)
           </p>
         </div>
 
-        <ul v-if="searchCenter" class="live-source-list" aria-label="Live search data sources">
-          <li><strong>Hotel records:</strong> {{ hotelSource }} (live)</li>
+        <ul v-if="searchCenter" class="live-source-list" aria-label="Hotel search data sources">
+          <li>
+            <strong>Hotel records:</strong> {{ hotelSource }}
+            <template v-if="!showingLocalResults"> (live)</template>
+          </li>
           <li><strong>ZIP center:</strong> {{ postcodeSource }}</li>
           <li><strong>Map imagery:</strong> OpenStreetMap</li>
         </ul>
@@ -216,6 +361,11 @@ onMounted(loadRecommendations)
           </p>
           <p v-else-if="noResults" role="status">
             ZIP {{ searchedPostcode }} resolved successfully, but Geoapify returned no hotels.
+          </p>
+          <p v-else-if="showingLocalResults" class="result-count" role="status">
+            {{ resultCount }} saved {{ resultCount === 1 ? 'hotel is' : 'hotels are' }} associated
+            with ZIP {{ searchedPostcode }}. This is your saved subset, not a complete list of
+            hotels in the area.
           </p>
           <p v-else-if="expandedSearch" class="result-count" role="status">
             No exact-boundary hotels were available. {{ resultCount }}
@@ -236,6 +386,10 @@ onMounted(loadRecommendations)
               :postcode="searchedPostcode"
               :show-postcode-relation="expandedSearch"
               :selected-place-id="selectedPlaceId"
+              :result-source="resultSource"
+              :pending-place-id="localActionPlaceId"
+              @add="handleAddToLocal"
+              @remove="handleRemoveFromLocal"
               @select="selectHotel"
             />
           </div>
@@ -243,11 +397,28 @@ onMounted(loadRecommendations)
             :results="results"
             :center="searchCenter"
             :selected-place-id="selectedPlaceId"
+            :result-source="resultSource"
             @select="selectHotelFromMap"
           />
         </div>
 
-        <p v-if="results.length" class="provider-note">
+        <div
+          v-if="localActionMessage || localActionError"
+          class="local-hotel-feedback"
+          aria-live="polite"
+        >
+          <p v-if="localActionMessage" class="success-message">{{ localActionMessage }}</p>
+          <p v-if="localActionError" class="error-message" role="alert">
+            {{ localActionError }}
+          </p>
+        </div>
+
+        <p v-if="results.length && showingLocalResults" class="provider-note">
+          Saved-local results use the ZIP and location context recorded when each hotel was
+          added. They are not a complete list of hotels in this area. Nightly rates and room
+          counts shown here are simulated classroom data, not Geoapify values.
+        </p>
+        <p v-else-if="results.length" class="provider-note">
           Hotel records are pulled live from Geoapify Places through FastAPI—not from the local
           CSV or SQLite demo catalog. Names, addresses, postcodes, and coordinates are shown only
           when supplied by Geoapify. No price, rating, room availability, or booking claim is

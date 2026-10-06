@@ -7,6 +7,7 @@ const props = defineProps({
   results: { type: Array, required: true },
   center: { type: Object, required: true },
   selectedPlaceId: { type: String, default: '' },
+  resultSource: { type: String, default: 'api' },
 })
 
 const emit = defineEmits(['select'])
@@ -119,7 +120,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="hotel-map-shell">
-    <div ref="mapElement" class="hotel-map" aria-label="Interactive map of live hotel results"></div>
+    <div
+      ref="mapElement"
+      class="hotel-map"
+      :aria-label="
+        resultSource === 'local'
+          ? 'Interactive map of locally saved hotel results'
+          : 'Interactive map of live API hotel results'
+      "
+    ></div>
     <p class="hotel-map-note">Map imagery © OpenStreetMap contributors.</p>
   </div>
 </template>

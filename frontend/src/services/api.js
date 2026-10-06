@@ -1,4 +1,5 @@
 const NEARBY_HOTELS_PATH = '/api/hotels/nearby'
+const SAVED_HOTELS_PATH = '/api/saved-hotels'
 const HOTEL_RECOMMENDATIONS_PATH = '/api/hotels/recommended'
 const USERS_PATH = '/api/users'
 const BOOKINGS_PATH = '/api/bookings'
@@ -74,6 +75,22 @@ function validateNearbyCollection(data) {
   return data
 }
 
+function validateSavedHotelCollection(data) {
+  validateCollection(data, 'The local hotel service')
+  if (
+    !Array.isArray(data.saved_hotel_ids) ||
+    data.result_source !== 'Saved locally' ||
+    data.complete_area_inventory !== false ||
+    (data.count > 0 &&
+      (!data.center ||
+        !Number.isFinite(data.center.latitude) ||
+        !Number.isFinite(data.center.longitude)))
+  ) {
+    throw new ApiRequestError('The local hotel service returned an unexpected response.')
+  }
+  return data
+}
+
 export async function searchNearbyHotels(postcode, token = '', limit = 20) {
   const parameters = new URLSearchParams({ postcode, limit: String(limit) })
   return validateNearbyCollection(
@@ -82,6 +99,33 @@ export async function searchNearbyHotels(postcode, token = '', limit = 20) {
       token ? { headers: { Authorization: `Bearer ${token}` } } : {},
       'The live hotel search service',
     ),
+  )
+}
+
+export async function getSavedHotels(postcode) {
+  const parameters = new URLSearchParams({ postcode })
+  return validateSavedHotelCollection(
+    await requestJson(
+      `${SAVED_HOTELS_PATH}?${parameters.toString()}`,
+      {},
+      'The local hotel service',
+    ),
+  )
+}
+
+export function saveHotelLocally(payload) {
+  return requestJson(
+    SAVED_HOTELS_PATH,
+    { method: 'POST', body: JSON.stringify(payload) },
+    'The local hotel service',
+  )
+}
+
+export function removeSavedHotel(placeId) {
+  return requestJson(
+    `${SAVED_HOTELS_PATH}/${encodeURIComponent(placeId)}`,
+    { method: 'DELETE' },
+    'The local hotel service',
   )
 }
 

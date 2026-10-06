@@ -5,7 +5,7 @@ from decimal import Decimal
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 EMAIL_PATTERN = re.compile(
@@ -63,6 +63,55 @@ class NearbyHotelSearchResponse(BaseModel):
     )
     center: PostcodeCenterResponse
     results: list[NearbyHotelResponse]
+
+
+class SavedHotelCreateRequest(BaseModel):
+    """One provider hotel plus the ZIP context in which it was discovered."""
+
+    postcode: str = Field(pattern=r"^\d{5}$")
+    center: PostcodeCenterResponse
+    search_scope: Literal["postcode boundary", "expanded radius"]
+    search_radius_miles: int | None = Field(default=None, ge=1)
+    hotel: NearbyHotelResponse
+
+    @model_validator(mode="after")
+    def validate_search_context(self) -> "SavedHotelCreateRequest":
+        if self.center.postcode != self.postcode:
+            raise ValueError("The searched ZIP must match the stored ZIP center.")
+        if not self.hotel.place_id:
+            raise ValueError("The provider hotel ID must not be blank.")
+        if self.search_scope == "postcode boundary" and self.search_radius_miles is not None:
+            raise ValueError("Boundary searches must not include an expanded radius.")
+        if self.search_scope == "expanded radius" and self.search_radius_miles is None:
+            raise ValueError("Expanded searches must include their radius.")
+        return self
+
+
+class DemoHotelNightResponse(BaseModel):
+    stay_date: date
+    nightly_rate_cents: int = Field(ge=0)
+    rooms_available: int = Field(ge=0)
+
+
+class SavedHotelResponse(NearbyHotelResponse):
+    """A saved provider hotel reconstructed for the existing list and map."""
+
+    saved_locally: Literal[True] = True
+    demo_nights: list[DemoHotelNightResponse]
+
+
+class SavedHotelSearchResponse(BaseModel):
+    """Saved hotels for one ZIP; never a complete area inventory."""
+
+    query: str
+    count: int = Field(ge=0)
+    result_source: Literal["Saved locally"] = "Saved locally"
+    complete_area_inventory: Literal[False] = False
+    search_scope: Literal["postcode boundary", "expanded radius"] | None = None
+    search_radius_miles: int | None = Field(default=None, ge=1)
+    center: PostcodeCenterResponse | None = None
+    results: list[SavedHotelResponse]
+    saved_hotel_ids: list[str]
 
 
 class HotelStayResponse(BaseModel):

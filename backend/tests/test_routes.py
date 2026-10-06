@@ -16,12 +16,18 @@ from app.models import (
     NearbyHotelResponse,
     NearbyHotelSearchResponse,
     PostcodeCenterResponse,
+    SavedHotelCreateRequest,
+    SavedHotelResponse,
+    SavedHotelSearchResponse,
 )
 from app.routes import (
     health_check,
     hotel_search,
     nearby_hotels,
+    remove_saved_hotel,
     recommended_hotels,
+    save_hotel,
+    saved_hotels,
 )
 
 
@@ -34,6 +40,9 @@ class RouteTests(unittest.TestCase):
         self.assertIn("get", api_paths["/api/hotels/nearby"])
         self.assertIn("get", api_paths["/api/hotels/search"])
         self.assertIn("get", api_paths["/api/hotels/recommended"])
+        self.assertIn("get", api_paths["/api/saved-hotels"])
+        self.assertIn("post", api_paths["/api/saved-hotels"])
+        self.assertIn("delete", api_paths["/api/saved-hotels/{hotel_id}"])
         self.assertIn("get", api_paths["/api/users"])
         self.assertIn("get", api_paths["/api/bookings"])
         self.assertIn("post", api_paths["/api/bookings"])
@@ -124,6 +133,55 @@ class RouteTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 502)
         self.assertEqual(raised.exception.detail, "The live hotel provider request failed.")
+
+    def test_saved_hotel_handlers_use_local_storage_controller(self) -> None:
+        center = PostcodeCenterResponse(
+            postcode="16802",
+            country_code="us",
+            latitude=40.7989,
+            longitude=-77.8599,
+            locality="State College",
+            state="Pennsylvania",
+        )
+        hotel = NearbyHotelResponse(
+            place_id="hotel-1",
+            name="Campus Hotel",
+            formatted_address="State College, PA 16802",
+            latitude=40.8,
+            longitude=-77.86,
+            distance_meters=123,
+            distance_miles=0.08,
+        )
+        payload = SavedHotelCreateRequest(
+            postcode="16802",
+            center=center,
+            search_scope="postcode boundary",
+            hotel=hotel,
+        )
+        saved = SavedHotelResponse(**hotel.model_dump(), demo_nights=[])
+        search = SavedHotelSearchResponse(
+            query="16802",
+            count=1,
+            search_scope="postcode boundary",
+            center=center,
+            results=[saved],
+            saved_hotel_ids=["hotel-1"],
+        )
+
+        with patch("app.routes.list_saved_hotel_records", return_value=search) as listed:
+            response = asyncio.run(saved_hotels("16802"))
+        listed.assert_called_once_with("16802")
+        self.assertEqual(response, search)
+
+        with patch("app.routes.save_api_hotel_record", return_value=saved) as saved_call:
+            response = asyncio.run(save_hotel(payload))
+        saved_call.assert_called_once_with(payload)
+        self.assertEqual(response, saved)
+
+        with patch("app.routes.delete_saved_hotel_record") as deleted:
+            response = asyncio.run(remove_saved_hotel("hotel-1"))
+        deleted.assert_called_once_with("hotel-1")
+        self.assertEqual(response.status_code, 204)
 
     def test_recommendations_handler(self) -> None:
         response = asyncio.run(recommended_hotels(3))
