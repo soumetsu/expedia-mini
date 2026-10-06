@@ -4,21 +4,23 @@
 
 - Last updated: `2026-10-06 EDT`
 - Claims last verified: `2026-10-06 EDT`
-- Update trigger: Condensed `report.md` and recorded the user-confirmed manual
-  spot checks for the most applicable parts of the latest Assignment 2 work.
+- Update trigger: Verified and committed the Assignment 2 DB Browser/local
+  storage work, fast-forwarded it into local `main`, and prepared the requested
+  `rag_integration` branch.
 
 ## Objective
 
-Assignment 2 Part 2 is implemented on `assignment2_part2_in_class`. The frozen
+Assignment 2 Part 2 is implemented and merged into local `main`. The frozen
 Part 1 Geoapify ZIP search and synchronized list/map remain intact. ZIP lookup
 is local-first, API hotels can be saved and removed, and saved hotels expose
-fictional October 10–14, 2026 rates and room counts. `report.md` now summarizes
-the implementation and verification without the previous chronological detail.
+fictional October 10–14, 2026 rates and room counts. The current `report.md`
+was deliberately preserved in its slightly unfinished state.
 
 ## Git publication state
 
-- Current branch: `assignment2_part2_in_class`.
-- No commit or push was requested or performed.
+- Assignment 2 commit: `1a47b59` (`Implement local saved-hotel workflow`).
+- Local `main` was fast-forwarded to that commit without conflicts.
+- `origin/main` remains at `5b882d5`; no push was requested or performed.
 - Supplied CSV files and ignored local configuration were not modified.
 
 ## Current state
@@ -119,5 +121,6 @@ the implementation and verification without the previous chronological detail.
 
 ## Exact next action
 
-Review the condensed `report.md`. Do not commit or publish unless the user
+Create and switch to `rag_integration`, then define the RAG scope before making
+implementation or dependency changes. Do not publish unless the user
 explicitly requests it.
