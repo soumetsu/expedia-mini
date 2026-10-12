@@ -22,7 +22,10 @@ saved-hotel, account, and booking behavior remains intact.
 - Assignment 2 commit: `1a47b59` (`Implement local saved-hotel workflow`).
 - Local `main` was fast-forwarded to that commit without conflicts.
 - `origin/main` remains at `5b882d5`; no push was requested or performed.
-- Current branch: `rag_integration`; chatbot changes are uncommitted.
+- Current branch: `rag_integration`; chatbot changes are committed.
+- The verified implementation is committed as `72810dc` (`Add Gemini support
+  chatbot`). `FINAL_REPORT.MD` is the canonical report for this chat and is
+  included in the following documentation commit.
 - The user's pre-existing `report.md` edits were preserved and extended only
   with the required chatbot milestone record.
 - Supplied CSV files and ignored local configuration were not modified.
@@ -71,7 +74,7 @@ saved-hotel, account, and booking behavior remains intact.
   `frontend/src/App.vue`, `frontend/src/services/api.js`,
   `frontend/src/style.css`
 - Chat documentation: `README.md`, `report.md`, `docs/design.md`,
-  `docs/verification.md`, and this handoff
+  `docs/verification.md`, `FINAL_REPORT.MD`, and this handoff
 
 Earlier Assignment 2 files remain:
 
@@ -156,5 +159,5 @@ Earlier Assignment 2 files remain:
 
 ## Exact next action
 
-Commit the verified implementation, create `FINAL_REPORT.MD` referencing that
-exact implementation commit, then commit and push both commits to GitHub.
+No implementation work remains. Await user review of `FINAL_REPORT.MD` and the
+published `rag_integration` branch.
