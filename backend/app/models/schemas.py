@@ -20,6 +20,44 @@ class HealthResponse(BaseModel):
     geoapify_api_key_status: Literal["key is configured", "key is not configured"]
 
 
+class ChatHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Chat messages must not be blank.")
+        return normalized
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatHistoryMessage] = Field(default_factory=list, max_length=10)
+
+    @field_validator("message")
+    @classmethod
+    def normalize_message(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Chat messages must not be blank.")
+        return normalized
+
+
+class ChatUsageMetrics(BaseModel):
+    prompt_tokens: int = Field(ge=0)
+    response_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    model: Literal["gemini-3.5-flash-lite"]
+    usage: ChatUsageMetrics | None = None
+
+
 class PostcodeCenterResponse(BaseModel):
     """The provider's representative point for a resolved U.S. ZIP code."""
 

@@ -2,25 +2,29 @@
 
 ## Handoff status
 
-- Last updated: `2026-10-06 EDT`
-- Claims last verified: `2026-10-06 EDT`
-- Update trigger: Verified and committed the Assignment 2 DB Browser/local
-  storage work, fast-forwarded it into local `main`, and prepared the requested
-  `rag_integration` branch.
+- Last updated: `2026-10-12 EDT`
+- Claims last verified: `2026-10-12 EDT`
+- Update trigger: The user requested a separate `FINAL_REPORT.MD` and GitHub
+  publication of the completed `rag_integration` work.
 
 ## Objective
 
-Assignment 2 Part 2 is implemented and merged into local `main`. The frozen
-Part 1 Geoapify ZIP search and synchronized list/map remain intact. ZIP lookup
-is local-first, API hotels can be saved and removed, and saved hotels expose
-fictional October 10–14, 2026 rates and room counts. The current `report.md`
-was deliberately preserved in its slightly unfinished state.
+The current milestone is a support-only chatbot using
+`gemini-3.5-flash-lite`. A fixed bottom-right Vue widget opens compactly,
+optionally expands across most of the viewport, and sends bounded conversation
+data through FastAPI. The Gemini key remains backend-only. SQL generation and
+RAG are not implemented in this step. The header identifies the pinned model,
+and successful replies show optional Gemini usage counts. Existing search,
+saved-hotel, account, and booking behavior remains intact.
 
 ## Git publication state
 
 - Assignment 2 commit: `1a47b59` (`Implement local saved-hotel workflow`).
 - Local `main` was fast-forwarded to that commit without conflicts.
 - `origin/main` remains at `5b882d5`; no push was requested or performed.
+- Current branch: `rag_integration`; chatbot changes are uncommitted.
+- The user's pre-existing `report.md` edits were preserved and extended only
+  with the required chatbot milestone record.
 - Supplied CSV files and ignored local configuration were not modified.
 
 ## Current state
@@ -57,6 +61,20 @@ was deliberately preserved in its slightly unfinished state.
 
 ## Files changed
 
+- Chat provider/configuration: `backend/app/controllers/chat.py`,
+  `backend/app/config.py`
+- Chat contracts/route: `backend/app/models/schemas.py`,
+  `backend/app/models/__init__.py`, `backend/app/routes.py`
+- Chat tests: `backend/tests/test_chat.py`, `backend/tests/test_config.py`,
+  `backend/tests/test_routes.py`
+- Chat view/API: `frontend/src/components/ChatbotWidget.vue`,
+  `frontend/src/App.vue`, `frontend/src/services/api.js`,
+  `frontend/src/style.css`
+- Chat documentation: `README.md`, `report.md`, `docs/design.md`,
+  `docs/verification.md`, and this handoff
+
+Earlier Assignment 2 files remain:
+
 - Backend persistence: `backend/app/controllers/database.py`
 - Backend contracts: `backend/app/models/schemas.py`,
   `backend/app/models/__init__.py`
@@ -71,6 +89,20 @@ was deliberately preserved in its slightly unfinished state.
   `docs/verification.md`, and this handoff
 
 ## Verification
+
+- Focused chatbot/configuration/route suite: 22 tests passed.
+- Full backend regression suite: 61 tests passed in 25.118 seconds.
+- Vue production build passed with 26 modules transformed.
+- Browser checkpoint confirmed the compact 384×544 desktop panel and optional
+  1024×736 expanded mode at a 1280×800 viewport.
+- One live browser request completed `/api/chat` with HTTP 200 and rendered a
+  Gemini reply. A later repeat received Gemini HTTP 503 `UNAVAILABLE` due to
+  high demand; FastAPI returned a sanitized 502 and Vue showed its retry state.
+- The chatbot now retries one transient 429/5xx response and excludes failed
+  user messages from later conversation history.
+- The annotated header now shows `gemini-3.5-flash-lite`. A live HTTP 200 reply
+  displayed provider-reported usage of 160 input + 149 output = 309 total
+  tokens.
 
 - Focused database and route suite: 22 tests passed in 19.278 seconds.
 - Full backend suite: 54 tests passed in 48.580 seconds.
@@ -97,7 +129,7 @@ was deliberately preserved in its slightly unfinished state.
 
 ## Running services
 
-- FastAPI: `http://127.0.0.1:8000`, listener PID `5724`, command owned by this
+- FastAPI: `http://127.0.0.1:8000`, listener PID `5404`, command owned by this
   repository's `backend\.venv` and Uvicorn application.
 - Vite: `http://127.0.0.1:5173`, listener PID `22620`, command owned by this
   repository's `frontend\node_modules\vite`.
@@ -110,7 +142,8 @@ was deliberately preserved in its slightly unfinished state.
 - Never describe the fictional rates or room counts as Geoapify data.
 - Local matches are a saved subset, not complete area inventory.
 - Keep all SQLite access in `database.py`; routes remain thin adapters.
-- Do not add dependencies, frontend chatbot features, or provider-search writes.
+- Do not add dependencies, SQL/RAG behavior, booking actions, or provider-search
+  writes to the support chatbot without separate authorization.
 
 ## Blockers or risks
 
@@ -118,9 +151,10 @@ was deliberately preserved in its slightly unfinished state.
 - Geoapify results can change, so observed provider counts are timestamped.
 - The condensed report deliberately treats automated tests as the evidence for
   schema constraints, idempotency, and transactional deletion.
+- Gemini `gemini-3.5-flash-lite` can temporarily return HTTP 503 under high
+  demand. The application exposes only a sanitized retryable error.
 
 ## Exact next action
 
-Create and switch to `rag_integration`, then define the RAG scope before making
-implementation or dependency changes. Do not publish unless the user
-explicitly requests it.
+Commit the verified implementation, create `FINAL_REPORT.MD` referencing that
+exact implementation commit, then commit and push both commits to GitHub.

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import BookingHistoryPage from './pages/BookingHistoryPage.vue'
+import ChatbotWidget from './components/ChatbotWidget.vue'
 import LoginPage from './pages/LoginPage.vue'
 import RegisterPage from './pages/RegisterPage.vue'
 import SearchHistoryPage from './pages/SearchHistoryPage.vue'
@@ -168,4 +169,6 @@ onBeforeUnmount(() => window.removeEventListener('popstate', handlePopState))
     @update:selected-user-id="selectedUserId = $event"
     @navigate="navigate"
   />
+
+  <ChatbotWidget />
 </template>

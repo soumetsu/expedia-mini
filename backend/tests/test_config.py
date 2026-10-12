@@ -5,7 +5,14 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from app.config import PROJECT_ROOT, get_geoapify_api_key, geoapify_api_key_configured
+from app.config import (
+    GEMINI_MODEL,
+    PROJECT_ROOT,
+    gemini_api_key_configured,
+    get_gemini_api_key,
+    get_geoapify_api_key,
+    geoapify_api_key_configured,
+)
 
 
 class ConfigTests(unittest.TestCase):
@@ -33,6 +40,22 @@ class ConfigTests(unittest.TestCase):
         ):
             self.assertTrue(geoapify_api_key_configured())
             self.assertEqual(get_geoapify_api_key(), "test-only-value")
+
+    def test_gemini_uses_the_approved_lightweight_model(self) -> None:
+        self.assertEqual(GEMINI_MODEL, "gemini-3.5-flash-lite")
+
+    def test_gemini_key_status_does_not_expose_the_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"GEMINI_API_KEY": "test-only-gemini-value"},
+            clear=True,
+        ):
+            self.assertTrue(gemini_api_key_configured())
+            self.assertEqual(get_gemini_api_key(), "test-only-gemini-value")
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "  "}, clear=True):
+            self.assertFalse(gemini_api_key_configured())
+            self.assertIsNone(get_gemini_api_key())
 
 
 if __name__ == "__main__":

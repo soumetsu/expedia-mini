@@ -260,11 +260,33 @@ backend credential. Expanded results label outside or unavailable postcodes,
 and their distance labels use text plus blue/orange/red severity so color is not
 the only distinction.
 
+## Support chatbot flow
+
+1. `ChatbotWidget.vue` owns the floating launcher, compact conversation view,
+   optional expanded view, local history, pending state, and error feedback.
+2. `services/api.js` posts a bounded message and conversation history to
+   `/api/chat`; no provider credential is present in the browser request.
+3. The thin FastAPI route validates `ChatRequest` and calls
+   `controllers/chat.py`.
+4. The controller sends the support instruction and conversation to the pinned
+   `gemini-3.5-flash-lite` model with the backend-only `GEMINI_API_KEY` header.
+5. FastAPI returns the reply, model name, and optional provider-reported token
+   usage. The widget identifies the pinned model in its header and shows input,
+   output, and total tokens below a successful reply. Provider and configuration
+   failures become sanitized 502 and 503 responses.
+
+The chatbot provides application help only. It does not query arbitrary SQL,
+perform RAG, create bookings, or convert live hotel places into claims about
+price, availability, ratings, reviews, amenities, or reservations. A single
+retry covers transient provider-capacity failures; the frontend keeps a clear
+retryable error when the provider remains unavailable.
+
 ## Current boundary
 
 Live ZIP hotel discovery, the synchronized Leaflet list/map, legacy catalog
 filtering, the separated booking sandbox, SQLite seeding, booking CRUD, demo
-authentication, and per-user search history are implemented. Provider coverage
+authentication, per-user search history, and backend-mediated Gemini support
+chat are implemented. Provider coverage
 can be incomplete, and results are capped per request. Prices, ratings, reviews,
 room inventory, real booking, personalized ranking, production identity,
 dynamic pricing, payments, flights, and taxes remain outside the live search.

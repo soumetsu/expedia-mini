@@ -21,6 +21,11 @@ from .controllers.auth import (
     register_account,
     user_id_for_token,
 )
+from .controllers.chat import (
+    ChatConfigurationError,
+    ChatProviderError,
+    request_support_reply,
+)
 from .controllers.catalog import recommend_hotel_stays, search_hotel_stays
 from .controllers.geocoding import (
     DEFAULT_HOTEL_LIMIT,
@@ -52,6 +57,8 @@ from .models import (
     BookingCreateRequest,
     BookingResponse,
     AuthResponse,
+    ChatRequest,
+    ChatResponse,
     HealthResponse,
     HotelSearchResponse,
     LoginRequest,
@@ -94,6 +101,24 @@ async def health_check() -> HealthResponse:
         else "key is not configured"
     )
     return HealthResponse(status="ok", geoapify_api_key_status=key_status)
+
+
+@router.post("/chat", response_model=ChatResponse, tags=["support"])
+async def support_chat(payload: ChatRequest) -> ChatResponse:
+    """Return a backend-mediated Gemini support response."""
+
+    try:
+        return request_support_reply(payload)
+    except ChatConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The support chatbot is not configured.",
+        ) from exc
+    except ChatProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The support chatbot could not provide a reply.",
+        ) from exc
 
 
 @router.post(

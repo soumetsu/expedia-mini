@@ -20,7 +20,7 @@ The backend environment is installed under `backend/.venv/`. Run its tests from
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The backend suite contains 54 tests. In addition to the SQLite, catalog,
+The backend suite contains 61 tests. In addition to the SQLite, catalog,
 booking, authentication, and search-history coverage, mocked Geoapify tests
 verify exact U.S. ZIP resolution, postcode boundary and hotel-category request
 parameters, exact returned-postcode filtering, 5/15/30-mile circle fallback,
@@ -28,7 +28,10 @@ first-populated-radius stopping, defensive radius checks, missing names and
 postcodes, invalid coordinates, normalized-name deduplication, Haversine
 distance ordering, successful empty results, source metadata, missing
 configuration, and provider failure. No automated test sends a live provider
-request.
+request. Mocked chatbot tests verify the pinned model, backend-only key header,
+bounded history roles, response and usage-metadata extraction, transient retry,
+route registration, input validation, and sanitized configuration/provider
+failures.
 
 Start the API from `backend/`:
 
@@ -68,6 +71,34 @@ npm run build
 There is no configured frontend lint or test script. Do not add a test framework
 without separate approval. `npm run build` is the current automated frontend
 check.
+
+## Support chatbot smoke test
+
+1. Start both documented services and open `http://127.0.0.1:5173/`.
+2. Confirm **Support / Chatbot** is fixed at the bottom-right and the desktop
+   panel opens at a compact size rather than occupying the whole screen.
+3. Confirm **Expand** makes the panel occupy most of the viewport and
+   **Restore** returns it to the compact size.
+4. Enter `How do I search for hotels by ZIP code?` and select **Send**. Confirm
+   a pending message appears, then a support reply or a clear provider error.
+5. In the browser Network panel, inspect `POST /api/chat`. Its JSON contains
+   `message` and bounded `history`; it must not contain `GEMINI_API_KEY` or any
+   provider key. The API response contains `reply`, `model`, and optional
+   provider-reported `usage` token counts.
+6. Confirm the backend access log records `POST /api/chat`. When Gemini is
+   available it should be HTTP 200. Continued provider capacity failure should
+   be a sanitized HTTP 502 and remain retryable in the widget.
+7. Confirm the header identifies `gemini-3.5-flash-lite`. After a successful
+   reply, confirm the message shows input, output, and total token counts.
+8. At a narrow viewport, confirm the panel remains inside the viewport and its
+   conversation, input, Send, Expand/Restore, and Close controls are usable.
+
+The October 8, 2026 checkpoint produced one live Gemini reply through the full
+browser → FastAPI → Gemini → browser path. A later repeat encountered Gemini
+HTTP 503 `UNAVAILABLE` because `gemini-3.5-flash-lite` was under high demand;
+the backend returned a sanitized 502 and the frontend displayed its retry state.
+After the usage follow-up, a live request returned HTTP 200 and displayed the
+provider-reported count: 160 input + 149 output = 309 total tokens.
 
 ## Integrated live-search smoke test
 

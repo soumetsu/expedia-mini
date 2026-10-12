@@ -12,9 +12,9 @@
 
 # Research Notes/Notes In General
 - Used Leaflet 1.9.4
-- Initial behavior of the search was to find hotels within a 5(?) mile radius.
-- One feature I wanted to add after implementing the search was the ability to open the queried address/hotel in Google Maps, in an external tab. I first
-
+- Initial behavior of the search was to find hotels within a 5(?) mile radius. This worked as intended, but most apps will show hotels that are the closest, despite being outside of the desired radius. I made a subtle change to include hotels close to the zip code, if there are no hotels within the 5 mile radius (or after the closest results).
+- One feature I wanted to add after implementing the search was the ability to open the queried address/hotel in Google Maps, in an external tab.
+-
 
 
 
@@ -55,6 +55,14 @@ The latest Assignment 2 work adds local storage for selected Geoapify hotels:
   honestly, preserves card/map selection by provider ID, and uses live
   Geoapify only after a successful empty local response.
 
+The current support milestone adds a bottom-right chatbot that stays compact on
+desktop unless the user selects **Expand**. Vue sends bounded conversation data
+to FastAPI, and the backend calls `gemini-3.5-flash-lite` without exposing the
+API key to the browser. The interface shows conversation, pending, and
+retryable error states, identifies the model in its header, and shows Gemini's
+per-reply token counts when supplied. This step is support chat only; SQL
+generation and RAG remain unimplemented.
+
 ##
 
 ## Verification
@@ -85,6 +93,15 @@ synchronized card/map behavior, responsive presentation, and disclosure that
 rates and room counts are simulated classroom data. Schema constraints,
 idempotency, and transactional deletion remain supported by the automated
 database tests.
+
+The support-chat addition passed its focused mocked tests and the full backend
+suite, and the Vue production build completed with 26 modules. Browser review
+confirmed compact and expanded desktop modes and a live `/api/chat` HTTP 200
+round trip with a rendered Gemini reply. A later provider-capacity check
+returned Gemini HTTP 503 `UNAVAILABLE`; the application converted it to a
+sanitized 502 and displayed the intended retryable error. A follow-up live HTTP
+200 response displayed Gemini's reported 160 input, 149 output, and 309 total
+tokens.
 
 ### Existing browser evidence
 

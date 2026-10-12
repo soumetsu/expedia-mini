@@ -5,6 +5,7 @@ const USERS_PATH = '/api/users'
 const BOOKINGS_PATH = '/api/bookings'
 const AUTH_PATH = '/api/auth'
 const SEARCH_HISTORY_PATH = '/api/search-history'
+const CHAT_PATH = '/api/chat'
 
 export class ApiRequestError extends Error {
   constructor(message, status = null) {
@@ -172,6 +173,33 @@ export async function getSearchHistory(token) {
   )
   if (!Array.isArray(data)) {
     throw new ApiRequestError('The search history service returned an unexpected response.')
+  }
+  return data
+}
+
+export async function sendChatMessage(message, history = []) {
+  const data = await requestJson(
+    CHAT_PATH,
+    {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    },
+    'The support chatbot',
+  )
+  if (!data || typeof data.reply !== 'string' || typeof data.model !== 'string') {
+    throw new ApiRequestError('The support chatbot returned an unexpected response.')
+  }
+  if (
+    data.usage !== null &&
+    data.usage !== undefined &&
+    (!Number.isInteger(data.usage.prompt_tokens) ||
+      !Number.isInteger(data.usage.response_tokens) ||
+      !Number.isInteger(data.usage.total_tokens) ||
+      data.usage.prompt_tokens < 0 ||
+      data.usage.response_tokens < 0 ||
+      data.usage.total_tokens < 0)
+  ) {
+    throw new ApiRequestError('The support chatbot returned unexpected usage data.')
   }
   return data
 }

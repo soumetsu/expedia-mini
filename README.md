@@ -117,10 +117,11 @@ workspace.
 ## Backend environment configuration
 
 The backend configuration helper at `backend/app/config.py` loads the
-project-root `.env` file at `.env` and reads `GEOAPIFY_API_KEY`. The health
-endpoint reports only whether that setting is configured; it never returns the
-key value. Restart the backend process after editing `.env` so the new setting
-is loaded.
+project-root `.env` file at `.env` and reads `GEOAPIFY_API_KEY` and
+`GEMINI_API_KEY`. Both credentials remain backend-only. The health endpoint
+reports only whether the Geoapify setting is configured; it never returns a key
+value. Restart the backend process after editing `.env` so new settings load.
+The support chatbot explicitly uses `gemini-3.5-flash-lite`.
 
 ## Run and build the frontend
 
@@ -155,6 +156,7 @@ The backend keeps the supplied CSV files unchanged, validates their
 relationships, seeds SQLite from all four CSV files, and provides:
 
 - `GET /api/health`
+- `POST /api/chat`
 - `GET /api/hotels/nearby?postcode=<ZIP>&limit=<1–50>`
 - `GET /api/saved-hotels?postcode=<ZIP>`
 - `POST /api/saved-hotels`
@@ -170,6 +172,17 @@ relationships, seeds SQLite from all four CSV files, and provides:
 - `POST /api/bookings`
 - `PATCH /api/bookings/{booking_id}/cancel`
 - `DELETE /api/bookings/{booking_id}`
+
+The fixed bottom-right **Support / Chatbot** control opens a compact conversation
+panel on desktop and can be expanded to occupy most of the viewport. Vue sends
+only the current message and up to ten prior conversation messages to
+`POST /api/chat`; it never receives the Gemini key. FastAPI validates the
+bounded request and calls Gemini through a focused backend controller. Pending,
+provider-error, restore, close, keyboard, and narrow-screen states are visible
+in the interface. Its header names the pinned model, and successful replies show
+Gemini-reported input, output, and total token counts when available. The
+assistant is limited to product support and must preserve the boundary between
+live Geoapify place facts and fictional classroom data.
 
 Search trims whitespace, ignores capitalization, and matches partial hotel
 names, cities, states, and combined city/state labels. Optional dates narrow

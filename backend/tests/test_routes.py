@@ -12,7 +12,10 @@ from app.controllers.geocoding import (
     GeoapifyConfigurationError,
     GeoapifyProviderError,
 )
+from app.controllers.chat import ChatConfigurationError, ChatProviderError
 from app.models import (
+    ChatRequest,
+    ChatResponse,
     NearbyHotelResponse,
     NearbyHotelSearchResponse,
     PostcodeCenterResponse,
@@ -28,6 +31,7 @@ from app.routes import (
     recommended_hotels,
     save_hotel,
     saved_hotels,
+    support_chat,
 )
 
 
@@ -36,6 +40,7 @@ class RouteTests(unittest.TestCase):
         api_paths = app.openapi()["paths"]
 
         self.assertIn("get", api_paths["/api/health"])
+        self.assertIn("post", api_paths["/api/chat"])
         self.assertNotIn("/api/demo/zip-location", api_paths)
         self.assertIn("get", api_paths["/api/hotels/nearby"])
         self.assertIn("get", api_paths["/api/hotels/search"])
@@ -55,6 +60,34 @@ class RouteTests(unittest.TestCase):
 
         self.assertEqual(response.status, "ok")
         self.assertEqual(response.geoapify_api_key_status, "key is not configured")
+
+    def test_support_chat_uses_controller_and_sanitizes_failures(self) -> None:
+        payload = ChatRequest(message="How do I search?")
+        expected = ChatResponse(
+            reply="Enter a five-digit U.S. ZIP.",
+            model="gemini-3.5-flash-lite",
+            usage={
+                "prompt_tokens": 42,
+                "response_tokens": 9,
+                "total_tokens": 51,
+            },
+        )
+        with patch("app.routes.request_support_reply", return_value=expected) as mocked:
+            response = asyncio.run(support_chat(payload))
+        mocked.assert_called_once_with(payload)
+        self.assertEqual(response, expected)
+
+        for error, status_code in (
+            (ChatConfigurationError("secret"), 503),
+            (ChatProviderError("secret"), 502),
+        ):
+            with self.subTest(status_code=status_code), patch(
+                "app.routes.request_support_reply",
+                side_effect=error,
+            ), self.assertRaises(HTTPException) as raised:
+                asyncio.run(support_chat(payload))
+            self.assertEqual(raised.exception.status_code, status_code)
+            self.assertNotIn("secret", raised.exception.detail)
 
     def test_search_handler(self) -> None:
         response = asyncio.run(hotel_search(" Boston "))
