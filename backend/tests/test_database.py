@@ -8,16 +8,20 @@ import unittest
 
 from app.controllers.database import (
     BookingConflictError,
+    HotelQueryValidationError,
     SavedHotelNotFoundError,
     cancel_booking,
     create_booking,
     delete_saved_hotel,
     delete_booking,
+    execute_read_only_hotel_query,
     fetch_hotel_stays,
     initialize_database,
     list_bookings,
     list_saved_hotels,
     list_users,
+    record_conversation_message,
+    record_conversation_trace,
     save_api_hotel,
 )
 from app.models import (
@@ -217,7 +221,7 @@ class DatabaseTests(unittest.TestCase):
     def test_reinitialization_adds_api_hotel_tables_without_reseeding(self) -> None:
         connection = sqlite3.connect(self.database_path)
         try:
-            connection.execute("DROP TABLE saved_hotel_locations")
+            connection.execute("DROP TABLE saved_hotel_zips")
             connection.execute("DROP TABLE demo_hotel_nights")
             connection.execute("DROP TABLE saved_hotels")
             connection.execute("DELETE FROM bookings WHERE booking_id = 'B006'")
@@ -242,7 +246,7 @@ class DatabaseTests(unittest.TestCase):
             connection.close()
 
         self.assertTrue(
-            {"saved_hotels", "saved_hotel_locations", "demo_hotel_nights"}
+            {"saved_hotels", "saved_hotel_zips", "demo_hotel_nights"}
             <= tables
         )
         self.assertEqual(booking_count, 5)
@@ -284,7 +288,7 @@ class DatabaseTests(unittest.TestCase):
                 table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 for table in (
                     "saved_hotels",
-                    "saved_hotel_locations",
+                    "saved_hotel_zips",
                     "demo_hotel_nights",
                 )
             }
@@ -298,7 +302,7 @@ class DatabaseTests(unittest.TestCase):
             counts,
             {
                 "saved_hotels": 1,
-                "saved_hotel_locations": 1,
+                "saved_hotel_zips": 1,
                 "demo_hotel_nights": 5,
             },
         )
@@ -323,6 +327,79 @@ class DatabaseTests(unittest.TestCase):
         self.assertIsNone(empty.center)
         self.assertEqual(empty.saved_hotel_ids, [first.hotel.place_id])
 
+    def test_chat_schema_and_read_only_hotel_query_are_separate(self) -> None:
+        save_api_hotel(saved_hotel_payload(postcode="16803"), self.database_path)
+        proposed_sql = """
+        SELECT sh.name, sz.searched_postcode, dn.stay_date,
+               dn.nightly_rate_cents / 100.0 AS nightly_rate_usd,
+               dn.rooms_available
+        FROM saved_hotels AS sh
+        JOIN saved_hotel_zips AS sz ON sz.hotel_id = sh.hotel_id
+        JOIN demo_hotel_nights AS dn ON dn.hotel_id = sh.hotel_id
+        WHERE sz.searched_postcode = '16803'
+          AND dn.stay_date = '2026-10-11'
+          AND dn.rooms_available > 0
+        ORDER BY dn.nightly_rate_cents, sh.name
+        LIMIT 3
+        """
+
+        executed_sql, rows = execute_read_only_hotel_query(
+            proposed_sql,
+            self.database_path,
+        )
+        record_conversation_message(
+            "conversation-1",
+            "user",
+            "Find three hotels.",
+            self.database_path,
+        )
+        record_conversation_message(
+            "conversation-1",
+            "assistant",
+            "One saved match.",
+            self.database_path,
+        )
+        record_conversation_trace(
+            "conversation-1",
+            "generated_sql",
+            proposed_sql,
+            self.database_path,
+        )
+
+        connection = sqlite3.connect(self.database_path)
+        try:
+            messages = connection.execute(
+                """
+                SELECT message_id, conversation_id, timestamp, role, content
+                FROM conversation_history ORDER BY message_id
+                """
+            ).fetchall()
+            traces = connection.execute(
+                "SELECT stage FROM conversation_traces ORDER BY trace_id"
+            ).fetchall()
+        finally:
+            connection.close()
+
+        self.assertIn("approved_hotel_query LIMIT 20", executed_sql)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["searched_postcode"], "16803")
+        self.assertEqual(rows[0]["nightly_rate_usd"], 100.0)
+        self.assertEqual([row[3] for row in messages], ["user", "assistant"])
+        self.assertTrue(all(row[0] and row[1] and row[2] for row in messages))
+        self.assertEqual(traces, [("generated_sql",)])
+
+    def test_hotel_query_rejects_writes_and_unapproved_tables(self) -> None:
+        invalid_queries = (
+            "DELETE FROM saved_hotels",
+            "SELECT * FROM users LIMIT 1",
+            "SELECT * FROM saved_hotels; SELECT * FROM demo_hotel_nights",
+        )
+        for query in invalid_queries:
+            with self.subTest(query=query), self.assertRaises(
+                HotelQueryValidationError
+            ):
+                execute_read_only_hotel_query(query, self.database_path)
+
     def test_delete_saved_hotel_removes_only_its_local_graph(self) -> None:
         deleted_id = "provider-hotel-delete"
         kept_id = "provider-hotel-keep"
@@ -340,7 +417,7 @@ class DatabaseTests(unittest.TestCase):
                 ).fetchone()[0]
                 for table in (
                     "saved_hotels",
-                    "saved_hotel_locations",
+                    "saved_hotel_zips",
                     "demo_hotel_nights",
                 )
             }
@@ -350,7 +427,7 @@ class DatabaseTests(unittest.TestCase):
                 ).fetchone()[0]
                 for table in (
                     "saved_hotels",
-                    "saved_hotel_locations",
+                    "saved_hotel_zips",
                     "demo_hotel_nights",
                 )
             }
@@ -362,7 +439,7 @@ class DatabaseTests(unittest.TestCase):
             kept_counts,
             {
                 "saved_hotels": 1,
-                "saved_hotel_locations": 1,
+                "saved_hotel_zips": 1,
                 "demo_hotel_nights": 5,
             },
         )

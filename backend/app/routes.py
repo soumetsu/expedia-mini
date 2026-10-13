@@ -119,6 +119,11 @@ async def support_chat(payload: ChatRequest) -> ChatResponse:
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The support chatbot could not provide a reply.",
         ) from exc
+    except DataAccessError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The support chatbot could not access its local records.",
+        ) from exc
 
 
 @router.post(

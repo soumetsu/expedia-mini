@@ -6,7 +6,9 @@ Last updated: October 13, 2026
 
 - Repository: [github.com/soumetsu/expedia-mini](https://github.com/soumetsu/expedia-mini)
 - Assessed implementation branch: `rag_integration`
-- Assessed implementation commit: [`72810dc`](https://github.com/soumetsu/expedia-mini/commit/72810dc)
+- Last published implementation commit: [`2643f66`](https://github.com/soumetsu/expedia-mini/commit/2643f66)
+- Current SQL-grounded assistant milestone: working tree on `rag_integration`;
+  replace this line with the assessed commit after publication.
 - Backend setup: create or activate `backend/.venv`, install the pinned packages
   from `backend/requirements.txt` when needed, configure the project-root `.env`,
   then run from `backend/`:
@@ -45,15 +47,24 @@ fictional classroom booking workflow.
   and deletion of test bookings.
 - Demo accounts use hashed passwords and process-local bearer sessions.
   Search history is persisted and filtered by the authenticated user.
-- A bottom-right support chatbot opens as a compact desktop panel and can be
-  expanded. Vue sends bounded conversation history only to FastAPI; the Gemini
-  API key stays on the backend.
-- The chatbot uses `gemini-3.5-flash-lite`, shows the model in its header, and
-  displays Gemini-reported input, output, and total token counts when supplied.
-  It includes pending, sanitized error, retry, close, restore, keyboard, and
-  narrow-screen states.
-- The chatbot is product support only. SQL generation and RAG are not presented
-  as implemented.
+- A bottom-right hotel chatbot opens as a compact desktop panel and can be
+  expanded. Vue calls only FastAPI; the Gemini API key stays on the backend.
+- The chatbot uses `gemini-3.5-flash-lite` as primary and a labeled
+  `gemini-3.1-flash-lite` availability fallback, shows every model actually used
+  in its header, and displays Gemini-reported input, output, and total token
+  counts when supplied. It includes pending, sanitized error, retry, close,
+  restore, keyboard, and narrow-screen states.
+- Backend startup loads [hotel-assistant.md](prompts/hotel-assistant.md). The
+  first Gemini call proposes SQL using the saved-hotel schema and query rules.
+- The backend permits one bounded `SELECT` against only `saved_hotels`,
+  `saved_hotel_zips`, and `demo_hotel_nights`, using a read-only connection,
+  authorizer, progress timeout, and outer row limit.
+- A second Gemini call receives the original question and checked rows. The
+  frontend labels this SQL-backed path and exposes generated SQL, executed SQL,
+  and retrieved records. A support-only path is labeled separately.
+- `conversation_history` stores separate user/assistant rows;
+  `conversation_traces` stores generated SQL, executed SQL, result summary, and
+  error stages without mixing writes into the read-only hotel query.
 
 The implementation preserves MVC boundaries: Pydantic/entity definitions are
 under `backend/app/models/`, database and provider workflows are under
@@ -74,8 +85,8 @@ optional expanded chat view. Problematic or unsupported ideas included treating
 nearby results as inside the requested ZIP, presenting fictional price or room
 data as provider facts, exposing credentials to Vue, and allowing arbitrary
 model-generated SQL. These observations produced the boundary-first/radius
-fallback, explicit data-source labels, backend-only credentials, read-only
-provider calls, and support-only chatbot scope.
+fallback, explicit data-source labels, backend-only credentials, and a narrowly
+allowlisted read-only SQL workflow instead of arbitrary model execution.
 
 ### Current Expedia search-results reference
 
@@ -131,9 +142,17 @@ retrieval foundation for Part 2.
 
 ![Current expanded chatbot and unsupported comparison](docs/screenshots/part2/05-expanded-chatbot.png)
 
-The current chatbot accepts the target comparison question but explains that it
-cannot yet filter or compare saved nightly rows. These captures establish the
-before state for the proposed-SQL, retrieved-records, and grounded-answer UI.
+These captures are the before state. The updated chatbot now exposes its
+generated SQL, backend-executed bounded SQL, and retrieved records below a
+grounded reply; an updated recorded demonstration is still required.
+
+![Grounded ZIP 16803 answer and SQL-backed retrieval label](docs/screenshots/part2/06-rag-grounded-answer.jpg)
+
+![Backend-bounded executed SQL shown in the expanded evidence panel](docs/screenshots/part2/07-rag-checked-sql.jpg)
+
+These October 13 captures show the successful final checkpoint. The answer
+uses the requested night, three saved hotels, simulated prices and room counts,
+and explicitly states that regular ZIP search was not used for the answer.
 
 ## Screen-recorded demonstration
 
@@ -147,26 +166,29 @@ remains a submission gap.
 
 | Area | Input or action | Expected | Observed | Correction or limitation |
 | --- | --- | --- | --- | --- |
-| Backend regression | Run `python -m unittest discover -s tests` from `backend/` | All contracts and workflows pass | 61 tests passed on October 12, 2026 | No automated browser-component suite is configured |
-| Frontend build | Run `npm run build` from `frontend/` | Production bundle builds | 26 modules transformed successfully on October 12, 2026 | Existing installed Node/Vite toolchain required |
+| Backend regression | Run `python -m unittest discover -s tests -v` from `backend/` | All contracts and workflows pass | Latest rerun: 65 tests passed in 60.087 seconds on October 13, 2026 | No automated browser-component suite is configured |
+| Frontend build | Run `npm run build` from `frontend/` | Production bundle builds | Latest rerun: 26 modules transformed successfully in 3.05 seconds on October 13, 2026 | Existing installed Node/Vite toolchain required |
 | Live ZIP search | Search ZIP `16802` on October 13, 2026 | Local saved subset first; live fallback when empty | Empty local subset fell through to 20 then-current Geoapify records in the first populated 5-mile radius, with API labels and synchronized map | Geoapify results and counts can change |
 | Saved-data baseline | Search ZIP `16801` on October 13, 2026 | Return saved hotels and labeled demo nights without a live fallback | Four saved hotels displayed October 10–14 simulated $100 nightly rows and 20 rooms per night | This is a saved subset, not full area inventory |
 | Saved hotels | Add, refresh, and remove a provider hotel in temporary-database tests | Idempotent save, preserved edits, scoped transactional delete | Tests passed without changing Assignment 1 rows | Rates and rooms are explicitly fictional |
 | Chat success | Submit `What can this app help me do?` | Browser calls `/api/chat`; response returns through FastAPI | HTTP 200 reply rendered with `160 input + 149 output = 309 total` provider-reported tokens | Token counts vary by conversation |
-| RAG baseline gap | Submit `Which saved hotel is cheapest and available from Oct 10 to Oct 12, 2026?` on October 13, 2026 | Current support-only behavior should avoid inventing a comparison | HTTP 200 reply correctly said date filtering and comparison are unsupported; it did not retrieve SQLite rows | Proposed SQL, checked retrieval, and a second grounded model request remain to be implemented |
-| Chat provider load | Repeat requests while Gemini is under load | No secret details; retryable failure | Gemini 503 was retried once, mapped to sanitized 502, and displayed as a retryable UI error | External model capacity remains variable |
+| SQL safety | Try `DELETE FROM saved_hotels`, an unapproved `users` read, and two statements | Reject before any database change | Automated tests rejected all three; valid hotel SQL ran through a read-only/query-only connection with authorizer, timeout, and 20-row outer cap | SQL validator intentionally supports focused `SELECT` statements only |
+| RAG checkpoint | Ask for the three cheapest available saved hotels near ZIP `16803` for October 11, 2026 | First model call proposes the two JOINs; backend retrieves three rows; second call returns a grounded answer | Conversation `4b916c51-5786-4287-98bf-a07186874a5f` recorded both SQL stages and three rows; the UI displayed Comfort Suites, Days Inn by Wyndham, and Sleep Inn at simulated $100.00 with 20 rooms for the requested night | Earlier attempts produced sanitized 502 states and were retained as failure evidence; the final cooled-down retry succeeded |
+| Chat provider load | Submit the ZIP `16803` RAG question after deploying backoff and labeled model fallback | Provider failures remain sanitized and bounded; either primary or fallback can complete both stages | An initial post-backoff retry returned sanitized 502 before SQL; after the fallback revision, conversation `b1ef1ec9-a215-4c32-83ce-2b9eb6acb47a` completed both stages with HTTP 200 on primary and reported 5,331 tokens | The fallback path is mocked and verified but was not needed by this successful live call |
 | Secret boundary | Inspect request contract and mocked controller call | Browser request contains message/history only; key remains backend-side | Tests confirmed the key is sent only in the backend `x-goog-api-key` header and not the provider URL | Native browser Network-panel capture is not saved |
 | Formatting | Run `git diff --check` | No whitespace errors | Passed; Git reported only LF/CRLF conversion notices | Line-ending notices are environment-specific |
 
 Manual review also covered the applicable user-facing portions: local-first ZIP
 behavior, saved/API labels, Add/Remove controls, refreshed results, synchronized
 list/map selection, responsive layout, simulated-data disclosures, compact and
-expanded chatbot modes, the model label, and per-reply usage display.
+expanded chatbot modes, the model label, per-reply usage, the grounded answer,
+and the expandable SQL/retrieved-row evidence.
 
-Part 2 does not currently include a standalone fixed JSON sample. Repeatable
-checks instead use deterministic fixtures in `backend/tests/test_database.py`
-and mocked provider payloads in `backend/tests/test_chat.py`. A separately
-linked fixed JSON file remains a submission gap.
+The fixed labeled sample is
+[hotel-assistant-16803.json](docs/fixtures/hotel-assistant-16803.json).
+Repeatable checks use it alongside deterministic SQLite fixtures in
+`backend/tests/test_database.py` and mocked two-stage provider payloads in
+`backend/tests/test_chat.py`.
 
 Detailed repeat instructions are in [docs/verification.md](docs/verification.md).
 
@@ -174,18 +196,21 @@ Detailed repeat instructions are in [docs/verification.md](docs/verification.md)
 
 - **OpenAI Codex, GPT-5:** repository inspection, focused edits, test execution,
   browser verification, documentation condensation, and Git preparation.
-- **Google Gemini API, `gemini-3.5-flash-lite`:** runtime model used by the
-  implemented support chatbot. It was not given direct database access and does
-  not execute SQL.
+- **Google Gemini API, `gemini-3.5-flash-lite` primary and
+  `gemini-3.1-flash-lite` availability fallback:** the selected runtime model is
+  used first to propose focused SQL and again to answer from checked rows. The
+  response identifies every model actually used. Neither model receives SQLite
+  access or credentials or can execute or modify the database.
 
 Selected prompt-to-change evidence:
 
-- “User question → LLM proposes SQL ... backend validates and executes a
-  read-only local query ...” informed the documented future RAG direction, but
-  the later instruction “Implement only the support/chatbot” limited this
-  milestone to [chat.py](backend/app/controllers/chat.py),
-  [routes.py](backend/app/routes.py), and
+- “Use the first LLM request to propose SQL ... send the original question and
+  retrieved rows in a second LLM request” led to the staged controller in
+  [chat.py](backend/app/controllers/chat.py), the allowlisted executor in
+  [database.py](backend/app/controllers/database.py), and visible evidence in
   [ChatbotWidget.vue](frontend/src/components/ChatbotWidget.vue).
+- “Use `prompts/hotel-assistant.md` and load it at backend startup” led to the
+  versioned prompt and explicit lifespan load in [main.py](backend/app/main.py).
 - “The frontend should call your application, with no API key included in the
   request” led to the `/api/chat` proxy contract and backend-only key header,
   verified in [test_chat.py](backend/tests/test_chat.py).
@@ -193,8 +218,17 @@ Selected prompt-to-change evidence:
   provider-reported token metric in the chatbot component and response schema.
 - A revised approach is recorded by the live Gemini 503 result. The first
   implementation surfaced a generic provider failure; it was revised to retry
-  one transient 429/5xx response, preserve a sanitized frontend error, and omit
-  failed user messages from later model history.
+  transient 429/5xx and network failures with capped exponential backoff,
+  jitter, and a bounded `Retry-After` value. Continued 503s led to a second,
+  tested revision: three primary attempts and two labeled fallback attempts for
+  exhausted 5xx/network availability errors, while 429/authentication failures
+  stay on the primary path. Failed messages remain omitted from later model
+  history and frontend errors stay sanitized.
+- During the RAG checkpoint, early answer-stage failures prompted a bounded
+  revision from a 20-second timeout to 30 seconds. The later cooled-down browser
+  attempt completed both model calls and retained the earlier errors in
+  `conversation_traces`. Continued 503s then prompted the tested backoff policy
+  above.
 
 No full chat export is required. The linked source, tests, verification record,
 and selected excerpts identify the material AI-assisted decisions and changes.
@@ -203,6 +237,7 @@ and selected excerpts identify the material AI-assisted decisions and changes.
 
 Production authentication, payments, taxes and fees, live prices and room
 inventory, ratings, reviews, amenities, transportation bundles, personalized
-ranking, arbitrary availability, SQL/RAG chat, and real booking are outside the
-implemented scope. Live provider results may change. The early mockup, expanded
-demo recording, and standalone fixed Part 2 JSON sample remain evidence gaps.
+ranking, arbitrary availability, and real booking remain outside scope. Live
+provider results may change, and Gemini can still return transient failures
+even though the final two-call checkpoint succeeded. The early mockup and
+expanded demo recording remain evidence gaps.

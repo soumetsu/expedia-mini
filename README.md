@@ -50,7 +50,8 @@ Leaflet map, and SQLite preserves the supplied classroom booking data.
 |   |-- 02-complete-project-local-environments.md
 |   |-- 03-part-1-backend-csv-search.md
 |   |-- 04-part-1-frontend-csv-search.md
-|   `-- 05-sqlite-persistence-preflight.md
+|   |-- 05-sqlite-persistence-preflight.md
+|   `-- hotel-assistant.md
 |-- handoffs/
 |   |-- create-handoff.md
 |   `-- current.md
@@ -97,10 +98,13 @@ a primary key; API `name`, `formatted_address`, `latitude`, and `longitude` map
 to `name`, `address`, `latitude`, and `longitude`. `demo_hotel_nights` uses
 `(hotel_id, stay_date)` as its primary key and references `saved_hotels`.
 Its default $100.00 nightly rate and 20-room count are explicitly fictional
-classroom values, not Geoapify data. `saved_hotel_locations` separately records
+classroom values, not Geoapify data. `saved_hotel_zips` separately records
 the searched ZIP, ZIP center, provider locality/postcode, distance, and search
 scope needed to reconstruct the existing list and map without changing the
-provider response contract.
+provider response contract. Startup migrates the earlier
+`saved_hotel_locations` name without dropping saved rows. Conversation messages
+and labeled SQL workflow traces are stored separately from the model's
+read-only hotel query connection.
 
 ## Run the backend
 
@@ -121,7 +125,10 @@ project-root `.env` file at `.env` and reads `GEOAPIFY_API_KEY` and
 `GEMINI_API_KEY`. Both credentials remain backend-only. The health endpoint
 reports only whether the Geoapify setting is configured; it never returns a key
 value. Restart the backend process after editing `.env` so new settings load.
-The support chatbot explicitly uses `gemini-3.5-flash-lite`.
+The hotel assistant uses `gemini-3.5-flash-lite` as its primary model and
+`gemini-3.1-flash-lite` only as a labeled availability fallback after exhausted
+primary 5xx/network attempts. Backend startup loads its versioned instructions
+from `prompts/hotel-assistant.md`; restart the backend after editing that prompt.
 
 ## Run and build the frontend
 
@@ -175,14 +182,23 @@ relationships, seeds SQLite from all four CSV files, and provides:
 
 The fixed bottom-right **Support / Chatbot** control opens a compact conversation
 panel on desktop and can be expanded to occupy most of the viewport. Vue sends
-only the current message and up to ten prior conversation messages to
-`POST /api/chat`; it never receives the Gemini key. FastAPI validates the
-bounded request and calls Gemini through a focused backend controller. Pending,
-provider-error, restore, close, keyboard, and narrow-screen states are visible
-in the interface. Its header names the pinned model, and successful replies show
-Gemini-reported input, output, and total token counts when available. The
-assistant is limited to product support and must preserve the boundary between
-live Geoapify place facts and fictional classroom data.
+the current message, bounded history, and an opaque conversation ID to
+`POST /api/chat`; it never receives the Gemini key. For a saved-hotel question,
+Gemini first proposes one SQL `SELECT` using the prompt's real schema. The
+backend rejects multiple statements, writes, unapproved tables/functions, and
+slow queries, opens SQLite read-only, and caps returned rows. A second Gemini
+request receives the original question plus checked SQL and retrieved rows and
+returns a grounded answer. The frontend labels this path, exposes the checked
+SQL and records, and distinguishes it from support-only responses. Rates and
+availability remain simulated course data. Pending, provider-error, restore,
+close, keyboard, narrow-screen, model, and combined token-usage states remain
+visible. Each Gemini stage makes at most three primary-model attempts for
+transient timeouts, 429 responses, and selected 5xx responses. Exhausted
+5xx/network availability failures receive at most two attempts on the fallback;
+authentication and 429 failures do not switch models. Delays use capped
+exponential backoff with jitter and honor a bounded provider `Retry-After`
+value. The response identifies every model actually used, while permanent
+errors remain sanitized instead of being exposed to the browser.
 
 Search trims whitespace, ignores capitalization, and matches partial hotel
 names, cities, states, and combined city/state labels. Optional dates narrow

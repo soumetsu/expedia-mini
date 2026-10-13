@@ -177,16 +177,29 @@ export async function getSearchHistory(token) {
   return data
 }
 
-export async function sendChatMessage(message, history = []) {
+export async function sendChatMessage(message, history = [], conversationId = null) {
   const data = await requestJson(
     CHAT_PATH,
     {
       method: 'POST',
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({
+        message,
+        history,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      }),
     },
     'The support chatbot',
   )
-  if (!data || typeof data.reply !== 'string' || typeof data.model !== 'string') {
+  if (
+    !data ||
+    typeof data.reply !== 'string' ||
+    typeof data.model !== 'string' ||
+    typeof data.conversation_id !== 'string' ||
+    !['sql_query', 'support_only'].includes(data.retrieval_mode) ||
+    typeof data.generated_sql !== 'string' ||
+    typeof data.result_summary !== 'string' ||
+    !Array.isArray(data.retrieved_rows)
+  ) {
     throw new ApiRequestError('The support chatbot returned an unexpected response.')
   }
   if (

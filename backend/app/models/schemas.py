@@ -36,6 +36,12 @@ class ChatHistoryMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     history: list[ChatHistoryMessage] = Field(default_factory=list, max_length=10)
+    conversation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9-]+$",
+    )
 
     @field_validator("message")
     @classmethod
@@ -54,8 +60,18 @@ class ChatUsageMetrics(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    model: Literal["gemini-3.5-flash-lite"]
+    model: Literal[
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite + gemini-3.1-flash-lite",
+    ]
     usage: ChatUsageMetrics | None = None
+    conversation_id: str
+    retrieval_mode: Literal["sql_query", "support_only"]
+    generated_sql: str
+    executed_sql: str | None = None
+    result_summary: str
+    retrieved_rows: list[dict[str, str | int | float | None]]
 
 
 class PostcodeCenterResponse(BaseModel):

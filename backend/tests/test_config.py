@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from app.config import (
+    GEMINI_FALLBACK_MODEL,
     GEMINI_MODEL,
     PROJECT_ROOT,
     gemini_api_key_configured,
@@ -43,6 +44,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_gemini_uses_the_approved_lightweight_model(self) -> None:
         self.assertEqual(GEMINI_MODEL, "gemini-3.5-flash-lite")
+        self.assertEqual(GEMINI_FALLBACK_MODEL, "gemini-3.1-flash-lite")
 
     def test_gemini_key_status_does_not_expose_the_key(self) -> None:
         with patch.dict(

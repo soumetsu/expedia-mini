@@ -173,7 +173,7 @@ text comparison and form the non-null primary key. Coordinates have database
 range checks. Each fictional nightly row is keyed by `(hotel_id, stay_date)`,
 references a saved provider hotel, and defaults to 10,000 cents and 20 rooms.
 These defaults are classroom simulation data and are not supplied by Geoapify.
-`saved_hotel_locations` keeps a separate provider-hotel/ZIP association plus
+`saved_hotel_zips` keeps a separate provider-hotel/ZIP association plus
 the stored ZIP center, provider locality/postcode, distance, and search scope.
 The save controller uses insert-if-missing operations for the hotel,
 association, and five October 10–14 demo nights, so retries neither duplicate
@@ -263,30 +263,41 @@ the only distinction.
 ## Support chatbot flow
 
 1. `ChatbotWidget.vue` owns the floating launcher, compact conversation view,
-   optional expanded view, local history, pending state, and error feedback.
+   optional expanded view, local history, checked-SQL evidence, pending state,
+   and error feedback.
 2. `services/api.js` posts a bounded message and conversation history to
    `/api/chat`; no provider credential is present in the browser request.
 3. The thin FastAPI route validates `ChatRequest` and calls
    `controllers/chat.py`.
-4. The controller sends the support instruction and conversation to the pinned
-   `gemini-3.5-flash-lite` model with the backend-only `GEMINI_API_KEY` header.
-5. FastAPI returns the reply, model name, and optional provider-reported token
-   usage. The widget identifies the pinned model in its header and shows input,
-   output, and total tokens below a successful reply. Provider and configuration
-   failures become sanitized 502 and 503 responses.
+4. Backend startup loads `prompts/hotel-assistant.md`, which records the actual
+   columns, two `hotel_id` joins, ZIP/date/availability rules, price conversion,
+   and simulated-data boundary.
+5. The first `gemini-3.5-flash-lite` request proposes one SQL `SELECT` or
+   `NO_QUERY`. The credential stays in the backend request header.
+6. `controllers/database.py` validates a single statement, permits only
+   `saved_hotels`, `saved_hotel_zips`, and `demo_hotel_nights`, opens SQLite in
+   read-only/query-only mode, installs an authorizer and progress timeout, and
+   applies an outer 20-row limit.
+7. The second Gemini request receives the original question, proposed and
+   executed SQL, result summary, and retrieved rows. It must answer only from
+   those rows and acknowledge an empty result.
+8. User/assistant messages go to `conversation_history`; generated SQL,
+   executed SQL, result summaries, and errors go to `conversation_traces` using
+   a separate writable connection from the hotel query.
+9. FastAPI returns the grounded answer, conversation ID, retrieval mode, SQL,
+   rows, model, and combined provider usage. Provider and configuration failures
+   remain sanitized.
 
-The chatbot provides application help only. It does not query arbitrary SQL,
-perform RAG, create bookings, or convert live hotel places into claims about
-price, availability, ratings, reviews, amenities, or reservations. A single
-retry covers transient provider-capacity failures; the frontend keeps a clear
-retryable error when the provider remains unavailable.
+The chatbot retrieves and explains saved, simulated hotel-night data; it does
+not alter hotel records or make bookings. A single retry per model stage covers
+transient provider-capacity failures.
 
 ## Current boundary
 
 Live ZIP hotel discovery, the synchronized Leaflet list/map, legacy catalog
 filtering, the separated booking sandbox, SQLite seeding, booking CRUD, demo
-authentication, per-user search history, and backend-mediated Gemini support
-chat are implemented. Provider coverage
+authentication, per-user search history, and the two-stage SQL-grounded Gemini
+hotel assistant are implemented. Provider coverage
 can be incomplete, and results are capped per request. Prices, ratings, reviews,
 room inventory, real booking, personalized ranking, production identity,
 dynamic pricing, payments, flights, and taxes remain outside the live search.

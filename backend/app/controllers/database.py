@@ -6,6 +6,8 @@ import sqlite3
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+import re
+import time
 
 from ..models import (
     AuthUserResponse,
@@ -50,6 +52,14 @@ class AuthenticationError(LookupError):
 
 class SavedHotelNotFoundError(LookupError):
     """Raised when a requested provider hotel is not saved locally."""
+
+
+class HotelQueryValidationError(ValueError):
+    """Raised when model-proposed SQL violates the read-only hotel policy."""
+
+
+class HotelQueryExecutionError(RuntimeError):
+    """Raised when an approved hotel query cannot complete safely."""
 
 
 SCHEMA = """
@@ -119,7 +129,7 @@ CREATE TABLE IF NOT EXISTS demo_hotel_nights (
     PRIMARY KEY (hotel_id, stay_date)
 );
 
-CREATE TABLE IF NOT EXISTS saved_hotel_locations (
+CREATE TABLE IF NOT EXISTS saved_hotel_zips (
     hotel_id TEXT NOT NULL REFERENCES saved_hotels(hotel_id),
     searched_postcode TEXT NOT NULL CHECK (
         length(searched_postcode) = 5
@@ -152,8 +162,8 @@ CREATE TABLE IF NOT EXISTS saved_hotel_locations (
 CREATE INDEX IF NOT EXISTS idx_trips_hotel_id ON trips(hotel_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_trip_id ON bookings(trip_id);
-CREATE INDEX IF NOT EXISTS idx_saved_hotel_locations_postcode
-    ON saved_hotel_locations(searched_postcode, distance_meters, hotel_id);
+CREATE INDEX IF NOT EXISTS idx_saved_hotel_zips_postcode
+    ON saved_hotel_zips(searched_postcode, distance_meters, hotel_id);
 CREATE TABLE IF NOT EXISTS search_history (
     search_id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -165,7 +175,65 @@ CREATE TABLE IF NOT EXISTS search_history (
 );
 CREATE INDEX IF NOT EXISTS idx_search_history_user_time
     ON search_history(user_id, searched_at DESC, search_id DESC);
+
+CREATE TABLE IF NOT EXISTS conversation_history (
+    message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_history_conversation
+    ON conversation_history(conversation_id, message_id);
+
+CREATE TABLE IF NOT EXISTS conversation_traces (
+    trace_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    stage TEXT NOT NULL CHECK (
+        stage IN ('generated_sql', 'executed_sql', 'result_summary', 'error')
+    ),
+    content TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_traces_conversation
+    ON conversation_traces(conversation_id, trace_id);
 """
+
+
+APPROVED_HOTEL_QUERY_TABLES = frozenset(
+    {"saved_hotels", "saved_hotel_zips", "demo_hotel_nights"}
+)
+HOTEL_QUERY_ROW_LIMIT = 20
+HOTEL_QUERY_TIMEOUT_SECONDS = 0.25
+_FORBIDDEN_SQL_PATTERN = re.compile(
+    r"\b(?:PRAGMA|WITH|INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|ATTACH|"
+    r"DETACH|VACUUM|REINDEX|ANALYZE|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|"
+    r"UNION|INTERSECT|EXCEPT)\b",
+    re.IGNORECASE,
+)
+_TABLE_REFERENCE_PATTERN = re.compile(
+    r"\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
+_APPROVED_SQL_FUNCTIONS = frozenset(
+    {
+        "avg",
+        "coalesce",
+        "count",
+        "date",
+        "julianday",
+        "length",
+        "lower",
+        "max",
+        "min",
+        "round",
+        "substr",
+        "sum",
+        "upper",
+    }
+)
 
 
 def _demo_password(user_id: str) -> str:
@@ -245,6 +313,24 @@ def _connect(database_path: Path) -> sqlite3.Connection:
         raise DataAccessError("The application database could not be opened.") from exc
 
 
+def _migrate_saved_hotel_zip_table(connection: sqlite3.Connection) -> None:
+    """Rename the earlier ZIP-association table without losing saved rows."""
+
+    tables = {
+        row["name"]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    if "saved_hotel_locations" in tables and "saved_hotel_zips" not in tables:
+        connection.execute(
+            "ALTER TABLE saved_hotel_locations RENAME TO saved_hotel_zips"
+        )
+        connection.execute(
+            "DROP INDEX IF EXISTS idx_saved_hotel_locations_postcode"
+        )
+
+
 def initialize_database(
     database_path: Path = DATABASE_PATH,
     data_directory: Path = DATA_DIRECTORY,
@@ -254,6 +340,7 @@ def initialize_database(
     connection = _connect(database_path)
     try:
         with connection:
+            _migrate_saved_hotel_zip_table(connection)
             connection.executescript(SCHEMA)
             _ensure_auth_schema(connection)
             seed = connection.execute(
@@ -402,7 +489,7 @@ SELECT
     sl.distance_meters,
     sl.distance_miles,
     sl.inside_searched_postcode
-FROM saved_hotel_locations AS sl
+FROM saved_hotel_zips AS sl
 JOIN saved_hotels AS sh ON sh.hotel_id = sl.hotel_id
 WHERE sl.searched_postcode = ?
 ORDER BY sl.distance_meters, sh.hotel_id
@@ -492,7 +579,7 @@ def save_api_hotel(
             )
             connection.execute(
                 """
-                INSERT OR IGNORE INTO saved_hotel_locations (
+                INSERT OR IGNORE INTO saved_hotel_zips (
                     hotel_id, searched_postcode, center_locality, center_state,
                     center_latitude, center_longitude, search_scope,
                     search_radius_miles, hotel_city, hotel_state,
@@ -571,7 +658,7 @@ def delete_saved_hotel(
                 "DELETE FROM demo_hotel_nights WHERE hotel_id = ?", (hotel_id,)
             )
             connection.execute(
-                "DELETE FROM saved_hotel_locations WHERE hotel_id = ?", (hotel_id,)
+                "DELETE FROM saved_hotel_zips WHERE hotel_id = ?", (hotel_id,)
             )
             connection.execute(
                 "DELETE FROM saved_hotels WHERE hotel_id = ?", (hotel_id,)
@@ -582,6 +669,158 @@ def delete_saved_hotel(
         raise DataAccessError("The saved hotel could not be removed.") from exc
     finally:
         connection.close()
+
+
+def record_conversation_message(
+    conversation_id: str,
+    role: str,
+    content: str,
+    database_path: Path = DATABASE_PATH,
+) -> int:
+    """Persist one user or assistant message independently of hotel reads."""
+
+    if role not in {"user", "assistant"}:
+        raise ValueError("Conversation role must be user or assistant.")
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        with connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO conversation_history (
+                    conversation_id, role, content
+                ) VALUES (?, ?, ?)
+                """,
+                (conversation_id, role, content),
+            )
+        return int(cursor.lastrowid)
+    except sqlite3.Error as exc:
+        raise DataAccessError("Conversation history could not be saved.") from exc
+    finally:
+        connection.close()
+
+
+def record_conversation_trace(
+    conversation_id: str,
+    stage: str,
+    content: str,
+    database_path: Path = DATABASE_PATH,
+) -> int:
+    """Persist one labeled SQL-workflow trace outside the read-only query."""
+
+    approved_stages = {"generated_sql", "executed_sql", "result_summary", "error"}
+    if stage not in approved_stages:
+        raise ValueError("Conversation trace stage is not supported.")
+    initialize_database(database_path)
+    connection = _connect(database_path)
+    try:
+        with connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO conversation_traces (
+                    conversation_id, stage, content
+                ) VALUES (?, ?, ?)
+                """,
+                (conversation_id, stage, content[:20000]),
+            )
+        return int(cursor.lastrowid)
+    except sqlite3.Error as exc:
+        raise DataAccessError("Conversation trace could not be saved.") from exc
+    finally:
+        connection.close()
+
+
+def _validate_hotel_query(sql: str) -> str:
+    normalized = sql.strip()
+    if normalized.endswith(";"):
+        normalized = normalized[:-1].rstrip()
+    if not normalized or not re.match(r"^SELECT\b", normalized, re.IGNORECASE):
+        raise HotelQueryValidationError("Hotel queries must be a single SELECT.")
+    if ";" in normalized or "--" in normalized or "/*" in normalized or "*/" in normalized:
+        raise HotelQueryValidationError(
+            "SQL comments and multiple statements are not allowed."
+        )
+    if _FORBIDDEN_SQL_PATTERN.search(normalized):
+        raise HotelQueryValidationError("The proposed hotel query uses a blocked operation.")
+    if not sqlite3.complete_statement(f"{normalized};"):
+        raise HotelQueryValidationError("The proposed hotel query is incomplete.")
+
+    referenced_tables = {
+        match.group(1).lower()
+        for match in _TABLE_REFERENCE_PATTERN.finditer(normalized)
+    }
+    if not referenced_tables:
+        raise HotelQueryValidationError("The proposed query does not read a hotel table.")
+    if not referenced_tables <= APPROVED_HOTEL_QUERY_TABLES:
+        raise HotelQueryValidationError("The proposed query references an unapproved table.")
+    return normalized
+
+
+def execute_read_only_hotel_query(
+    proposed_sql: str,
+    database_path: Path = DATABASE_PATH,
+    row_limit: int = HOTEL_QUERY_ROW_LIMIT,
+    timeout_seconds: float = HOTEL_QUERY_TIMEOUT_SECONDS,
+) -> tuple[str, list[dict[str, object]]]:
+    """Validate and execute one bounded query using a read-only SQLite handle."""
+
+    initialize_database(database_path)
+    normalized = _validate_hotel_query(proposed_sql)
+    safe_row_limit = max(1, min(int(row_limit), HOTEL_QUERY_ROW_LIMIT))
+    executed_sql = (
+        "SELECT * FROM (\n"
+        f"{normalized}\n"
+        f") AS approved_hotel_query LIMIT {safe_row_limit}"
+    )
+    deadline = time.monotonic() + max(0.01, timeout_seconds)
+    timed_out = False
+
+    def stop_slow_query() -> int:
+        nonlocal timed_out
+        if time.monotonic() >= deadline:
+            timed_out = True
+            return 1
+        return 0
+
+    def authorize(
+        action: int,
+        argument_one: str | None,
+        argument_two: str | None,
+        _database_name: str | None,
+        _trigger_name: str | None,
+    ) -> int:
+        if action == sqlite3.SQLITE_SELECT:
+            return sqlite3.SQLITE_OK
+        if action == sqlite3.SQLITE_READ:
+            return (
+                sqlite3.SQLITE_OK
+                if (argument_one or "").lower() in APPROVED_HOTEL_QUERY_TABLES
+                else sqlite3.SQLITE_DENY
+            )
+        if action == sqlite3.SQLITE_FUNCTION:
+            return (
+                sqlite3.SQLITE_OK
+                if (argument_two or "").lower() in _APPROVED_SQL_FUNCTIONS
+                else sqlite3.SQLITE_DENY
+            )
+        return sqlite3.SQLITE_DENY
+
+    read_only_uri = f"{database_path.resolve().as_uri()}?mode=ro"
+    try:
+        connection = sqlite3.connect(read_only_uri, uri=True)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only = ON")
+        connection.set_authorizer(authorize)
+        connection.set_progress_handler(stop_slow_query, 1000)
+        rows = connection.execute(executed_sql).fetchall()
+        return executed_sql, [dict(row) for row in rows]
+    except sqlite3.Error as exc:
+        if timed_out:
+            raise HotelQueryExecutionError("The hotel query exceeded its time limit.") from exc
+        raise HotelQueryExecutionError("The approved hotel query could not be executed.") from exc
+    finally:
+        if "connection" in locals():
+            connection.close()
 
 
 STAY_SELECT = """

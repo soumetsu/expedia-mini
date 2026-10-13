@@ -29,9 +29,9 @@ postcodes, invalid coordinates, normalized-name deduplication, Haversine
 distance ordering, successful empty results, source metadata, missing
 configuration, and provider failure. No automated test sends a live provider
 request. Mocked chatbot tests verify the pinned model, backend-only key header,
-bounded history roles, response and usage-metadata extraction, transient retry,
-route registration, input validation, and sanitized configuration/provider
-failures.
+startup prompt/schema content, two model stages, read-only SQL validation,
+retrieved-row grounding, conversation traces, combined usage metadata,
+transient retry, route registration, input validation, and sanitized failures.
 
 Start the API from `backend/`:
 
@@ -79,19 +79,44 @@ check.
    panel opens at a compact size rather than occupying the whole screen.
 3. Confirm **Expand** makes the panel occupy most of the viewport and
    **Restore** returns it to the compact size.
-4. Enter `How do I search for hotels by ZIP code?` and select **Send**. Confirm
-   a pending message appears, then a support reply or a clear provider error.
+4. Enter `What are the three cheapest available saved hotels near ZIP 16803
+   for October 11, 2026?` and select **Send**. Confirm a pending message appears,
+   then a grounded answer or a clear provider error.
 5. In the browser Network panel, inspect `POST /api/chat`. Its JSON contains
-   `message` and bounded `history`; it must not contain `GEMINI_API_KEY` or any
-   provider key. The API response contains `reply`, `model`, and optional
-   provider-reported `usage` token counts.
+   `message`, bounded `history`, and at most an opaque `conversation_id`; it must
+   not contain `GEMINI_API_KEY` or any provider key. The response contains the
+   reply, retrieval mode, generated and executed SQL, retrieved rows, model, and
+   optional combined provider usage.
 6. Confirm the backend access log records `POST /api/chat`. When Gemini is
    available it should be HTTP 200. Continued provider capacity failure should
-   be a sanitized HTTP 502 and remain retryable in the widget.
-7. Confirm the header identifies `gemini-3.5-flash-lite`. After a successful
-   reply, confirm the message shows input, output, and total token counts.
+   be a sanitized HTTP 502 and remain retryable in the widget. Automated tests
+   verify three primary attempts, at most two fallback attempts after exhausted
+   5xx/network availability errors, exponential backoff, zero-to-25-percent
+   jitter, and a bounded `Retry-After` override.
+7. Confirm the header identifies `gemini-3.5-flash-lite` and additionally names
+   `gemini-3.1-flash-lite` only when fallback was used. After a successful
+   reply, confirm the message says regular ZIP search was not used, identifies
+   Gemini-generated/backend-validated SQLite retrieval, and exposes the checked
+   SQL and rows. Token counts combine both provider requests.
 8. At a narrow viewport, confirm the panel remains inside the viewport and its
    conversation, input, Send, Expand/Restore, and Close controls are usable.
+9. In DB Browser, inspect `conversation_history` for separate user and assistant
+   rows with message ID, conversation ID, timestamp, role, and content. Inspect
+   `conversation_traces` for `generated_sql`, `executed_sql`, and
+   `result_summary` rows for that conversation; failures use the `error` stage.
+10. Follow both joins in the recorded query: `saved_hotels.hotel_id` to
+    `saved_hotel_zips.hotel_id`, then to `demo_hotel_nights.hotel_id`. Confirm
+    names, October 11 nightly cents/dollars, and positive room counts match the
+    displayed answer. Missing night rows mean unknown availability.
+
+The fixed comparison sample is
+[`docs/fixtures/hotel-assistant-16803.json`](fixtures/hotel-assistant-16803.json).
+Validate its syntax from the repository root with
+`backend\.venv\Scripts\python.exe -m json.tool docs\fixtures\hotel-assistant-16803.json`,
+then compare its question, proposed SQL, three rows, requested night, and
+simulated-data label with the current DB Browser trace. The file is labeled as
+a deterministic expected-result sample, not evidence of a successful live
+provider call.
 
 The October 8, 2026 checkpoint produced one live Gemini reply through the full
 browser → FastAPI → Gemini → browser path. A later repeat encountered Gemini
@@ -99,6 +124,40 @@ HTTP 503 `UNAVAILABLE` because `gemini-3.5-flash-lite` was under high demand;
 the backend returned a sanitized 502 and the frontend displayed its retry state.
 After the usage follow-up, a live request returned HTTP 200 and displayed the
 provider-reported count: 160 input + 149 output = 309 total tokens.
+
+The October 13, 2026 SQL-grounded checkpoint saved the three live ZIP `16803`
+results and submitted the required October 11 comparison. Two live attempts
+recorded the correct two-JOIN generated SQL, bounded executed SQL, and a
+three-row result summary before Gemini failed during the second answer request;
+the UI displayed a sanitized 502. A later attempt failed during SQL generation.
+After a bounded timeout/retry revision and provider cool-down, conversation
+`4b916c51-5786-4287-98bf-a07186874a5f` completed both model calls. The UI named
+Comfort Suites, Days Inn by Wyndham, and Sleep Inn, each with a simulated
+$100.00 rate and 20 rooms for October 11, identified SQL-backed local retrieval,
+and exposed the generated SQL, bounded executed SQL, and three rows. The earlier
+failures remain recorded as revised-approach evidence.
+
+The October 13 resilience revision retained the 30-second per-attempt timeout.
+Each stage makes at most three attempts on `gemini-3.5-flash-lite`; exhausted
+5xx/network availability errors then receive at most two attempts on
+`gemini-3.1-flash-lite`. Authentication and exhausted 429 errors do not switch
+models. Retryable failures use capped exponential backoff with jitter; HTTP
+`Retry-After` is parsed as seconds or an HTTP date and capped at 30 seconds.
+Focused tests mock all delays and confirm primary recovery, labeled fallback
+recovery, and bounded exhaustion without contacting Gemini.
+
+The post-change live retry submitted the ZIP `16803` October 11 question through
+`/api/chat`. It still returned sanitized HTTP 502; its new conversation trace
+contained only `error` and no `generated_sql`, proving the provider remained
+unavailable through the stage-one attempts and that SQLite was not executed.
+The resilience change therefore improves recovery opportunities and bounds the
+failure, but cannot guarantee success during continuous upstream 503 responses.
+
+After adding the fallback policy, live conversation
+`b1ef1ec9-a215-4c32-83ce-2b9eb6acb47a` completed both RAG stages with HTTP 200
+using the primary `gemini-3.5-flash-lite`; fallback was not needed in that run.
+It generated both required joins, retrieved the three October 11 rows, returned
+the simulated $100.00/20-room facts, and reported 5,331 combined tokens.
 
 ## Integrated live-search smoke test
 
@@ -157,7 +216,7 @@ Use a ZIP that currently returns API results, then verify the save lifecycle:
    **Saved locally**, explicitly describes the results as a saved subset, and
    shows October 10–14, 2026 at $100.00/night with 20 rooms under **Simulated
    classroom data**.
-4. In DB Browser, inspect `saved_hotels`, `saved_hotel_locations`, and
+4. In DB Browser, inspect `saved_hotels`, `saved_hotel_zips`, and
    `demo_hotel_nights`. Confirm one exact provider ID, one ZIP association, and
    five hotel/date rows. Confirm `(hotel_id, stay_date)` is the nightly primary
    key and the nightly foreign key references `saved_hotels`.

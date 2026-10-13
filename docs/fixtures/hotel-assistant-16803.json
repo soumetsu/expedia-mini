@@ -1,0 +1,42 @@
+{
+  "fixture_type": "deterministic expected-result sample; not a live model response",
+  "question": "What are the three cheapest available saved hotels near ZIP 16803 for October 11, 2026?",
+  "generated_sql": "SELECT sh.hotel_id, sh.name, sh.address, sz.searched_postcode, sz.distance_miles, dn.stay_date, dn.nightly_rate_cents, dn.nightly_rate_cents / 100.0 AS nightly_rate_usd, dn.rooms_available FROM saved_hotels AS sh JOIN saved_hotel_zips AS sz ON sz.hotel_id = sh.hotel_id JOIN demo_hotel_nights AS dn ON dn.hotel_id = sh.hotel_id WHERE sz.searched_postcode = '16803' AND dn.stay_date = '2026-10-11' AND dn.rooms_available > 0 ORDER BY dn.nightly_rate_cents ASC, sh.name ASC LIMIT 3",
+  "retrieved_rows": [
+    {
+      "name": "Comfort Suites",
+      "searched_postcode": "16803",
+      "distance_miles": 0.97,
+      "stay_date": "2026-10-11",
+      "nightly_rate_cents": 10000,
+      "nightly_rate_usd": 100.0,
+      "rooms_available": 20
+    },
+    {
+      "name": "Days Inn by Wyndham",
+      "searched_postcode": "16803",
+      "distance_miles": 0.77,
+      "stay_date": "2026-10-11",
+      "nightly_rate_cents": 10000,
+      "nightly_rate_usd": 100.0,
+      "rooms_available": 20
+    },
+    {
+      "name": "Sleep Inn",
+      "searched_postcode": "16803",
+      "distance_miles": 0.93,
+      "stay_date": "2026-10-11",
+      "nightly_rate_cents": 10000,
+      "nightly_rate_usd": 100.0,
+      "rooms_available": 20
+    }
+  ],
+  "expected_answer_facts": {
+    "result_count": 3,
+    "requested_night": "2026-10-11",
+    "tie_breaker": "hotel name because all three simulated rates are equal",
+    "simulated_data_label_required": true,
+    "regular_zip_search_used_for_answer": false,
+    "retrieval_path": "Gemini-proposed SQL, backend-validated read-only SQLite query, then grounded Gemini answer"
+  }
+}

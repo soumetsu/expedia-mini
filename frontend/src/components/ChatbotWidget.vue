@@ -10,6 +10,7 @@ const isExpanded = ref(false)
 const draft = ref('')
 const isPending = ref(false)
 const errorMessage = ref('')
+const conversationId = ref(null)
 const conversation = ref(null)
 const messageField = ref(null)
 const messages = ref([
@@ -21,6 +22,10 @@ const messages = ref([
   },
 ])
 let nextMessageId = 2
+
+function formatRetrievedRows(rows) {
+  return JSON.stringify(rows, null, 2)
+}
 
 async function scrollToLatest() {
   await nextTick()
@@ -65,7 +70,8 @@ async function submitMessage() {
   await scrollToLatest()
 
   try {
-    const response = await sendChatMessage(message, history)
+    const response = await sendChatMessage(message, history, conversationId.value)
+    conversationId.value = response.conversation_id
     userMessage.includeInHistory = true
     messages.value.push({
       id: nextMessageId++,
@@ -73,6 +79,11 @@ async function submitMessage() {
       content: response.reply,
       model: response.model,
       usage: response.usage,
+      retrievalMode: response.retrieval_mode,
+      generatedSql: response.generated_sql,
+      executedSql: response.executed_sql,
+      resultSummary: response.result_summary,
+      retrievedRows: response.retrieved_rows,
       includeInHistory: true,
     })
   } catch (error) {
@@ -134,6 +145,22 @@ async function submitMessage() {
         >
           <span>{{ message.role === 'user' ? 'You' : 'Support' }}</span>
           <p>{{ message.content }}</p>
+          <p v-if="message.retrievalMode === 'sql_query'" class="support-chat-data-path">
+            Retrieval: Gemini API generated SQL; the backend validated and ran it read-only
+            against local SQLite. Regular ZIP search was not used.
+          </p>
+          <p v-else-if="message.retrievalMode === 'support_only'" class="support-chat-data-path">
+            Retrieval: Support-only response; no hotel SQL query or regular ZIP search was run.
+          </p>
+          <details v-if="message.retrievalMode === 'sql_query'" class="support-chat-evidence">
+            <summary>Show checked SQL and retrieved records</summary>
+            <strong>Generated SQL</strong>
+            <pre>{{ message.generatedSql }}</pre>
+            <strong>Executed SQL</strong>
+            <pre>{{ message.executedSql }}</pre>
+            <strong>Retrieved records</strong>
+            <pre>{{ formatRetrievedRows(message.retrievedRows) }}</pre>
+          </details>
           <p v-if="message.usage" class="support-chat-usage">
             Tokens: {{ message.usage.prompt_tokens }} input +
             {{ message.usage.response_tokens }} output =
@@ -167,7 +194,7 @@ async function submitMessage() {
         </button>
       </form>
       <p class="support-chat-disclaimer">
-        Support answers may be inaccurate. Live hotel availability and prices are not provided.
+        Saved-hotel rates and availability are simulated course data, not live provider facts.
       </p>
     </section>
   </div>

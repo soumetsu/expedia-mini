@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from .controllers.chat import load_hotel_assistant_prompt
 from .controllers.database import initialize_database
 from .routes import router
 
@@ -13,6 +14,7 @@ async def lifespan(_: FastAPI):
     """Initialize and seed SQLite before accepting application requests."""
 
     initialize_database()
+    load_hotel_assistant_prompt()
     yield
 
 

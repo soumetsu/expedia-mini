@@ -1920,6 +1920,42 @@ tbody tr:last-child td {
   line-height: 1.35;
 }
 
+.support-chat-data-path {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+  color: #3f5668;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.support-chat-evidence {
+  margin-top: 0.55rem;
+  color: #32495b;
+  font-size: 0.72rem;
+}
+
+.support-chat-evidence summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.support-chat-evidence strong {
+  display: block;
+  margin-top: 0.55rem;
+}
+
+.support-chat-evidence pre {
+  max-width: 100%;
+  margin: 0.3rem 0 0;
+  overflow-x: auto;
+  border-radius: 0.45rem;
+  padding: 0.5rem;
+  background: #edf2f5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .support-chat-message-user {
   align-self: flex-end;
   background: var(--blue);

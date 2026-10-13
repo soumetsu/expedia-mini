@@ -66,6 +66,11 @@ class RouteTests(unittest.TestCase):
         expected = ChatResponse(
             reply="Enter a five-digit U.S. ZIP.",
             model="gemini-3.5-flash-lite",
+            conversation_id="conversation-1",
+            retrieval_mode="support_only",
+            generated_sql="NO_QUERY",
+            result_summary='{"row_count":0}',
+            retrieved_rows=[],
             usage={
                 "prompt_tokens": 42,
                 "response_tokens": 9,
