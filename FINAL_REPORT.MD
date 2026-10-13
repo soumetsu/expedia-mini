@@ -7,8 +7,8 @@ Last updated: October 13, 2026
 - Repository: [github.com/soumetsu/expedia-mini](https://github.com/soumetsu/expedia-mini)
 - Assessed implementation branch: `rag_integration`
 - Last published implementation commit: [`2643f66`](https://github.com/soumetsu/expedia-mini/commit/2643f66)
-- Current SQL-grounded assistant milestone: working tree on `rag_integration`;
-  replace this line with the assessed commit after publication.
+- Assessed SQL-grounded assistant implementation commit: `35e00b3` (local;
+  pending push to GitHub).
 - Backend setup: create or activate `backend/.venv`, install the pinned packages
   from `backend/requirements.txt` when needed, configure the project-root `.env`,
   then run from `backend/`:

@@ -2,10 +2,10 @@
 
 ## Handoff status
 
-- Last updated: `2026-10-13 11:07 EDT`
-- Claims last verified: `2026-10-13 11:07 EDT`
-- Update trigger: Added and verified a labeled Gemini 3.1 Flash-Lite fallback;
-  the next live two-stage RAG request succeeded on the primary model.
+- Last updated: `2026-10-13 11:33 EDT`
+- Claims last verified: `2026-10-13 11:33 EDT`
+- Update trigger: Committed the verified SQL-grounded assistant milestone as
+  `35e00b3` and recorded it as the assessed local implementation commit.
 
 ## Objective
 
@@ -39,9 +39,9 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
   support-only replies, and can expand generated SQL, executed SQL, and rows.
 - The fixed deterministic sample is
   `docs/fixtures/hotel-assistant-16803.json`.
-- `FINAL_REPORT.MD` is the canonical report for this chat. It truthfully marks
-  the working-tree milestone as not yet published and records the live provider
-  limitation.
+- `FINAL_REPORT.MD` is the canonical report for this chat. It records `35e00b3`
+  as the assessed local implementation commit, pending push, and records the
+  live provider limitation.
 
 ## Live checkpoint
 
@@ -131,6 +131,5 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
 
 ## Exact next action
 
-Review the final diff and current evidence. If requested, record the updated
-browser demonstration, add its link to `FINAL_REPORT.MD`, then commit and push
-the `rag_integration` milestone.
+Record the updated browser demonstration, add its link to `FINAL_REPORT.MD`,
+then commit that link and push the `rag_integration` milestone when requested.
