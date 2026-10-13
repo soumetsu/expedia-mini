@@ -2,10 +2,10 @@
 
 ## Handoff status
 
-- Last updated: `2026-10-13 11:33 EDT`
-- Claims last verified: `2026-10-13 11:33 EDT`
-- Update trigger: Committed the verified SQL-grounded assistant milestone as
-  `35e00b3` and recorded it as the assessed local implementation commit.
+- Last updated: `2026-10-13 12:18 EDT`
+- Claims last verified: `2026-10-13 12:18 EDT`
+- Update trigger: The user added the final Part 2 video link and requested that
+  all current report and screenshot changes be committed and pushed.
 
 ## Objective
 
@@ -42,6 +42,8 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
 - `FINAL_REPORT.MD` is the canonical report for this chat. It records `35e00b3`
   as the assessed local implementation commit, pending push, and records the
   live provider limitation.
+- `FINAL_REPORT.MD` is now 146 lines instead of 243 and includes the user's
+  final Part 2 video link.
 
 ## Live checkpoint
 
@@ -65,6 +67,10 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
 - Successful browser evidence is saved as
   `docs/screenshots/part2/06-rag-grounded-answer.jpg` and
   `docs/screenshots/part2/07-rag-checked-sql.jpg`.
+- A fresh October 13 browser run completed the same checkpoint on the primary
+  model with 4,999 input and 329 output tokens. Final-state captures are saved
+  as `08-final-rag-answer.png`, `09-final-rag-sql-evidence.png`, and
+  `10-final-rag-records.png` under `docs/screenshots/part2/`.
 
 ## Files changed
 
@@ -77,7 +83,10 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
 - Tests: `backend/tests/test_chat.py`, `backend/tests/test_database.py`,
   `backend/tests/test_routes.py`
 - Evidence/docs: `docs/fixtures/hotel-assistant-16803.json`, `README.md`,
-  `docs/design.md`, `docs/verification.md`, `FINAL_REPORT.MD`, this handoff
+  `docs/design.md`, `docs/verification.md`, `FINAL_REPORT.MD`,
+  `docs/screenshots/part2/08-final-rag-answer.png`,
+  `docs/screenshots/part2/09-final-rag-sql-evidence.png`,
+  `docs/screenshots/part2/10-final-rag-records.png`, this handoff
 
 ## Verification
 
@@ -99,6 +108,9 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
   prompt schema, SQL retrieval, grounded rows, combined usage, and trace stages.
 - `docs/fixtures/hotel-assistant-16803.json` passes `python -m json.tool`.
 - `git diff --check` passes; Git reports only expected LF-to-CRLF notices.
+- The fresh frontend checkpoint completed successfully and the three new image
+  files were saved from the live interface. No application code changed, so
+  the previously recorded 65-test backend run and Vue build remain current.
 
 ## Running service
 
@@ -127,9 +139,10 @@ retrieved rows, and Vue identifies the data path and exposes its evidence.
 - DB Browser for SQLite is installed and was opened on the runtime database,
   but native application controls are unavailable in this environment. Schema
   and checkpoint traces were verified read-only against that exact file.
-- The required updated screen-recorded RAG demonstration remains missing.
+- The updated screen-recorded RAG demonstration is linked from
+  `FINAL_REPORT.MD`.
 
 ## Exact next action
 
-Record the updated browser demonstration, add its link to `FINAL_REPORT.MD`,
-then commit that link and push the `rag_integration` milestone when requested.
+No implementation work remains in this handoff. Confirm the pushed
+`rag_integration` branch on GitHub before submission.
