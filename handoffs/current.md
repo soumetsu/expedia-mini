@@ -2,10 +2,10 @@
 
 ## Handoff status
 
-- Last updated: `2026-10-12 EDT`
-- Claims last verified: `2026-10-12 EDT`
-- Update trigger: The user requested a separate `FINAL_REPORT.MD` and GitHub
-  publication of the completed `rag_integration` work.
+- Last updated: `2026-10-13 EDT`
+- Claims last verified: `2026-10-13 EDT`
+- Update trigger: Captured the current Part 2 foundation and chatbot gap as five
+  screenshots and linked them from `FINAL_REPORT.MD`.
 
 ## Objective
 
@@ -106,6 +106,9 @@ Earlier Assignment 2 files remain:
 - The annotated header now shows `gemini-3.5-flash-lite`. A live HTTP 200 reply
   displayed provider-reported usage of 160 input + 149 output = 309 total
   tokens.
+- October 13 browser evidence captured ZIP `16802` with 20 live results in the
+  first populated 5-mile radius, ZIP `16801` with four saved hotels and labeled
+  demo-night rows, and the support chatbot declining a date/price comparison.
 
 - Focused database and route suite: 22 tests passed in 19.278 seconds.
 - Full backend suite: 54 tests passed in 48.580 seconds.
@@ -159,5 +162,5 @@ Earlier Assignment 2 files remain:
 
 ## Exact next action
 
-No implementation work remains. Await user review of `FINAL_REPORT.MD` and the
-published `rag_integration` branch.
+Implement the Part 2 SQL-grounded RAG workflow only after explicit user
+authorization. The new screenshots document the before state.

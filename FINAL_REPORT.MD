@@ -1,6 +1,6 @@
 # Expedia-Mini Final Report
 
-Last updated: October 12, 2026
+Last updated: October 13, 2026
 
 ## Project access
 
@@ -89,6 +89,36 @@ A separate pre-implementation wireframe or mockup was not saved in the
 repository. That remains an evidence gap and should not be represented as
 completed.
 
+## Current implementation screenshots
+
+The following October 13, 2026 captures record the baseline most likely to be
+changed by the Part 2 RAG work.
+
+![ZIP search and separate fictional booking foundation](docs/screenshots/part2/01-foundation-overview.png)
+
+The current home view separates live ZIP search from the fictional booking
+sandbox and exposes the fixed support launcher.
+
+![Live API results, map, and local-storage controls](docs/screenshots/part2/02-live-search-local-controls.png)
+
+ZIP `16802` returned 20 then-current Geoapify results in the first populated
+5-mile radius. The view shows the synchronized map plus Add, saved, and Remove
+states that must remain stable while RAG is added.
+
+![Saved hotels with simulated nightly rows](docs/screenshots/part2/03-saved-hotels-simulated-nights.png)
+
+ZIP `16801` returned four locally saved hotels with clearly labeled simulated
+October 10–14 rates and room availability. These rows are the intended SQL
+retrieval foundation for Part 2.
+
+![Current compact chatbot and unsupported comparison](docs/screenshots/part2/04-current-chatbot-rag-gap.png)
+
+![Current expanded chatbot and unsupported comparison](docs/screenshots/part2/05-expanded-chatbot.png)
+
+The current chatbot accepts the target comparison question but explains that it
+cannot yet filter or compare saved nightly rows. These captures establish the
+before state for the proposed-SQL, retrieved-records, and grounded-answer UI.
+
 ## Screen-recorded demonstration
 
 - [API Hotel Search implementation recording](https://drive.google.com/file/d/1RE18yXONS_yBIjWmDBg6zdNJDlAgtJaS/view?usp=drive_link)
@@ -103,10 +133,11 @@ remains a submission gap.
 | --- | --- | --- | --- | --- |
 | Backend regression | Run `python -m unittest discover -s tests` from `backend/` | All contracts and workflows pass | 61 tests passed on October 12, 2026 | No automated browser-component suite is configured |
 | Frontend build | Run `npm run build` from `frontend/` | Production bundle builds | 26 modules transformed successfully on October 12, 2026 | Existing installed Node/Vite toolchain required |
-| Live ZIP search | Search ZIP `10036` on October 1, 2026 | Local saved subset first; live fallback when empty | Empty local subset fell through to 16 then-current Geoapify records with API labels and synchronized map | Geoapify results and counts can change |
-| Radius fallback | Search ZIP `16802` | Boundary first, then nearest populated radius | Live response reported a populated 5-mile expanded radius during review | Provider coverage is not guaranteed |
+| Live ZIP search | Search ZIP `16802` on October 13, 2026 | Local saved subset first; live fallback when empty | Empty local subset fell through to 20 then-current Geoapify records in the first populated 5-mile radius, with API labels and synchronized map | Geoapify results and counts can change |
+| Saved-data baseline | Search ZIP `16801` on October 13, 2026 | Return saved hotels and labeled demo nights without a live fallback | Four saved hotels displayed October 10–14 simulated $100 nightly rows and 20 rooms per night | This is a saved subset, not full area inventory |
 | Saved hotels | Add, refresh, and remove a provider hotel in temporary-database tests | Idempotent save, preserved edits, scoped transactional delete | Tests passed without changing Assignment 1 rows | Rates and rooms are explicitly fictional |
 | Chat success | Submit `What can this app help me do?` | Browser calls `/api/chat`; response returns through FastAPI | HTTP 200 reply rendered with `160 input + 149 output = 309 total` provider-reported tokens | Token counts vary by conversation |
+| RAG baseline gap | Submit `Which saved hotel is cheapest and available from Oct 10 to Oct 12, 2026?` on October 13, 2026 | Current support-only behavior should avoid inventing a comparison | HTTP 200 reply correctly said date filtering and comparison are unsupported; it did not retrieve SQLite rows | Proposed SQL, checked retrieval, and a second grounded model request remain to be implemented |
 | Chat provider load | Repeat requests while Gemini is under load | No secret details; retryable failure | Gemini 503 was retried once, mapped to sanitized 502, and displayed as a retryable UI error | External model capacity remains variable |
 | Secret boundary | Inspect request contract and mocked controller call | Browser request contains message/history only; key remains backend-side | Tests confirmed the key is sent only in the backend `x-goog-api-key` header and not the provider URL | Native browser Network-panel capture is not saved |
 | Formatting | Run `git diff --check` | No whitespace errors | Passed; Git reported only LF/CRLF conversion notices | Line-ending notices are environment-specific |
