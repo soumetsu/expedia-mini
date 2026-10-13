@@ -77,6 +77,22 @@ model-generated SQL. These observations produced the boundary-first/radius
 fallback, explicit data-source labels, backend-only credentials, read-only
 provider calls, and support-only chatbot scope.
 
+### Current Expedia search-results reference
+
+The following Expedia captures were observed on October 13, 2026 for Times
+Square, New York, October 13–15, 2026, two travelers, and one room. Prices,
+availability, property counts, and rankings are live third-party observations
+and may change; they are design research rather than application test data.
+
+![Expedia Times Square search results with filters and the first result](docs/screenshots/research/expedia-times-square-search-results-2026-10-13.jpg)
+
+![Expedia Times Square search-result cards with ratings and total prices](docs/screenshots/research/expedia-times-square-result-cards-2026-10-13.jpg)
+
+The results emphasize destination/date context, fast filters, rating and review
+evidence, nightly and total prices, availability warnings, and a persistent map
+action. The project borrows the information hierarchy, but continues to label
+its fixed rates and availability as simulated course data.
+
 ## Early design evidence
 
 The repository contains the early Expedia reference captures

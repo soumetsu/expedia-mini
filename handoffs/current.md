@@ -4,8 +4,8 @@
 
 - Last updated: `2026-10-13 EDT`
 - Claims last verified: `2026-10-13 EDT`
-- Update trigger: Captured the current Part 2 foundation and chatbot gap as five
-  screenshots and linked them from `FINAL_REPORT.MD`.
+- Update trigger: Added two dated Expedia search-results research captures to
+  `FINAL_REPORT.MD` and prepared them for GitHub publication.
 
 ## Objective
 
@@ -109,6 +109,10 @@ Earlier Assignment 2 files remain:
 - October 13 browser evidence captured ZIP `16802` with 20 live results in the
   first populated 5-mile radius, ZIP `16801` with four saved hotels and labeled
   demo-night rows, and the support chatbot declining a date/price comparison.
+- October 13 research evidence captured Expedia Times Square results for
+  October 13–15, two travelers, and one room, including filters, property
+  cards, ratings, nightly/total pricing, availability signals, and the map
+  action. The report labels these as mutable third-party observations.
 
 - Focused database and route suite: 22 tests passed in 19.278 seconds.
 - Full backend suite: 54 tests passed in 48.580 seconds.
